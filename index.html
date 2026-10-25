@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.5">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.5">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.8">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.11">
 <title>PinQuattrini</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
@@ -133,8 +133,8 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .brand .wm b{font-weight:800}
 .brand.top{align-self:flex-start}
 #app>.wrap{min-height:100vh;min-height:100dvh}
+.foot-logo{display:flex;color:var(--accent);opacity:.9}
 .foot{margin-top:auto;padding-top:28px;display:flex;flex-direction:column;align-items:center;gap:8px}
-.ascii{margin:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;line-height:1.25;color:var(--muted);text-align:center;display:inline-block}
 @keyframes up{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion: reduce){.sheet{animation:none}}
 .err{color:var(--danger);font-size:14px;font-weight:600}
@@ -187,8 +187,15 @@ let me=null;
 let authState='loading',userEmail='',dataError='';
 
 /* ============ Versione e note di rilascio ============ */
-const VERSION='1.9';
+const VERSION='1.11';
 const RELEASES=[
+  {v:'1.11',date:'25 ottobre 2026',notes:[
+    'Il logo colorato \u00e8 stato sostituito ovunque con quello in un solo colore: schermata di accesso e icone per la schermata Home di iPhone e Android',
+    'Rimossi tutti i file del vecchio logo'
+  ]},
+  {v:'1.10',date:'25 ottobre 2026',notes:[
+    'In fondo a tutte le pagine, al posto dei pinguini in ASCII, ora c\u2019\u00e8 il logo con i due pinguini'
+  ]},
   {v:'1.9',date:'25 ottobre 2026',notes:[
     'In alto a destra ora c\u2019\u00e8 il logo con i due pinguini in un solo colore e la scritta PinQuattrini in stile logo',
     'Il titolo del Budget \u00e8 stato accorciato (es. \u201cBudget \u00b7 ott\u201d) per fare spazio al logo'
@@ -599,17 +606,13 @@ function vImpostazioni(){
   </div>`;
 }
 
-const LOGO=()=>`<img src="icon.png" alt="" width="72" height="72" style="border-radius:20px;display:block">`;
+const LOGO=()=>`<span style="display:flex;color:var(--accent)">${logoMono('l',88)}</span>`;
 function vLoading(){
   return`<div class="wrap" style="min-height:80vh;align-items:center;justify-content:center;text-align:center;gap:16px">${LOGO()}${dataError?`<p class="err" style="max-width:320px">${esc(dataError)}</p><button class="btn plain" style="width:auto;padding:0 20px" data-act="logout">Esci</button>`:`<p class="muted">Caricamento\u2026</p>`}</div>`;
 }
-const LOGO_MONO=`<svg class="pq-ic" viewBox="88 64 336 336" width="30" height="30" aria-hidden="true" focusable="false"><defs><clipPath id="pqc"><path clip-rule="evenodd" d="M0 0H512V512H0ZM148 294L148 312C148 332.99 165.01 350 186 350C206.99 350 224 332.99 224 312L224 294C224 273.01 206.99 256 186 256C165.01 256 148 273.01 148 294ZM168 206C168 221.46 181.43 234 198 234C214.57 234 228 221.46 228 206C228 190.54 214.57 178 198 178C181.43 178 168 190.54 168 206ZM288 294L288 312C288 332.99 305.01 350 326 350C346.99 350 364 332.99 364 312L364 294C364 273.01 346.99 256 326 256C305.01 256 288 273.01 288 294ZM284 206C284 221.46 297.43 234 314 234C330.57 234 344 221.46 344 206C344 190.54 330.57 178 314 178C297.43 178 284 190.54 284 206Z"/></clipPath><g id="pqb"><rect x="-82" y="70" width="34" height="86" rx="17" transform="rotate(16 -65 113)"/><rect x="-50" y="174" width="40" height="22" rx="11"/><rect x="-2" y="174" width="40" height="22" rx="11"/><rect x="-62" y="-20" width="124" height="208" rx="62"/><path d="M52 32Q56 30 60 31L80 40Q83 42 80 44L60 53Q56 54 52 52Z"/></g></defs><g fill="currentColor" clip-path="url(#pqc)"><use href="#pqb" transform="translate(176 172)"/><use href="#pqb" transform="translate(336 172) scale(-1 1)"/></g><path fill="currentColor" d="M256 170C220 148 214 110 238 103C248 100 254 106 256 113C258 106 264 100 274 103C298 110 292 148 256 170Z"/></svg>`;
-const brand=(c='')=>`<span class="brand ${c}">${LOGO_MONO}<span class="wm"><b>Pin</b>Quattrini</span></span>`;
-const ASCII=String.raw`♥
-(^><^)
-//\/\\
-V_/\_V`;
-const FOOT=()=>`<div class="foot"><pre class="ascii" aria-hidden="true">${esc(ASCII)}</pre><p class="muted small">PinQuattrini ${VERSION}</p></div>`;
+const logoMono=(k,size)=>`<svg class="pq-ic" viewBox="88 64 336 336" width="${size}" height="${size}" aria-hidden="true" focusable="false"><defs><clipPath id="pqc${k}"><path clip-rule="evenodd" d="M0 0H512V512H0ZM148 294L148 312C148 332.99 165.01 350 186 350C206.99 350 224 332.99 224 312L224 294C224 273.01 206.99 256 186 256C165.01 256 148 273.01 148 294ZM168 206C168 221.46 181.43 234 198 234C214.57 234 228 221.46 228 206C228 190.54 214.57 178 198 178C181.43 178 168 190.54 168 206ZM288 294L288 312C288 332.99 305.01 350 326 350C346.99 350 364 332.99 364 312L364 294C364 273.01 346.99 256 326 256C305.01 256 288 273.01 288 294ZM284 206C284 221.46 297.43 234 314 234C330.57 234 344 221.46 344 206C344 190.54 330.57 178 314 178C297.43 178 284 190.54 284 206Z"/></clipPath><g id="pqb${k}"><rect x="-82" y="70" width="34" height="86" rx="17" transform="rotate(16 -65 113)"/><rect x="-50" y="174" width="40" height="22" rx="11"/><rect x="-2" y="174" width="40" height="22" rx="11"/><rect x="-62" y="-20" width="124" height="208" rx="62"/><path d="M52 32Q56 30 60 31L80 40Q83 42 80 44L60 53Q56 54 52 52Z"/></g></defs><g fill="currentColor" clip-path="url(#pqc${k})"><use href="#pqb${k}" transform="translate(176 172)"/><use href="#pqb${k}" transform="translate(336 172) scale(-1 1)"/></g><path fill="currentColor" d="M256 170C220 148 214 110 238 103C248 100 254 106 256 113C258 106 264 100 274 103C298 110 292 148 256 170Z"/></svg>`;
+const brand=(c='')=>`<span class="brand ${c}">${logoMono('h',30)}<span class="wm"><b>Pin</b>Quattrini</span></span>`;
+const FOOT=()=>`<div class="foot"><span class="foot-logo">${logoMono('f',48)}</span><p class="muted small">PinQuattrini ${VERSION}</p></div>`;
 function withFoot(h){const i=h.lastIndexOf('</div>');return h.slice(0,i)+FOOT()+h.slice(i)}
 function vLogin(){
   const f=ui.form||{};
