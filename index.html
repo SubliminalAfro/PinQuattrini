@@ -76,6 +76,7 @@ p{margin:0}
 .btn.dashed{background:var(--accent-soft);color:var(--accent-ink);border:1px dashed var(--accent);height:50px;font-size:15px}
 .btn.plain{background:var(--card);color:var(--text);border:1px solid var(--line);height:48px;font-size:14px}
 .btn.danger{background:transparent;color:var(--danger);border:1px solid var(--danger);height:48px;font-size:15px}
+.btn.danger-solid{background:var(--danger);color:var(--fab-ink)}
 .link{background:none;border:0;color:var(--accent);font-weight:600;font-size:14px;padding:10px 0}
 label.lbl,.lbl{font-size:13px;font-weight:600;display:block}
 .field{display:flex;flex-direction:column;gap:6px}
@@ -160,7 +161,7 @@ textarea.in{width:100%;min-height:180px;border-radius:12px;border:1px solid var(
 <script type="module">
 /* ============ Firebase ============ */
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail,reauthenticateWithCredential,EmailAuthProvider} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {initializeFirestore,getFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const firebaseConfig={
@@ -187,8 +188,13 @@ let me=null;
 let authState='loading',userEmail='',dataError='';
 
 /* ============ Versione e note di rilascio ============ */
-const VERSION='1.11';
+const VERSION='1.12';
 const RELEASES=[
+  {v:'1.12',date:'25 ottobre 2026',notes:[
+    'Opzioni: \u201cAccesso come\u201d \u00e8 il primo riquadro',
+    'Opzioni: c\u2019\u00e8 un solo campo nome e modifica soltanto il tuo; l\u2019altro lo cambia ognuno dal proprio account',
+    'Opzioni: \u201cCancella tutti i dati\u201d \u00e8 in fondo e, prima di cancellare, chiede conferma e la tua password'
+  ]},
   {v:'1.11',date:'25 ottobre 2026',notes:[
     'Il logo colorato \u00e8 stato sostituito ovunque con quello in un solo colore: schermata di accesso e icone per la schermata Home di iPhone e Android',
     'Rimossi tutti i file del vecchio logo'
@@ -591,18 +597,17 @@ function vCategorie(first){
 }
 
 function vImpostazioni(){
-  const p=S.people;
   return`<div class="wrap"><div class="between"><h1>Opzioni</h1>${brand()}</div>
-  <div class="field"><span class="lbl">I vostri nomi</span><div class="row" style="gap:8px"><label class="sr" for="n1">Persona 1</label><input id="n1" class="in" style="flex:1" value="${esc(p.p1.name)}" maxlength="20"><label class="sr" for="n2">Persona 2</label><input id="n2" class="in" style="flex:1" value="${esc(p.p2.name)}" maxlength="20"><button class="iconbtn" style="width:48px;height:48px;background:var(--btn);border:0" data-act="saveNames" aria-label="Salva nomi">${svg(UI.check,22,2.5,'#fff')}</button></div></div>
-  <div class="field"><span class="lbl">Tema</span><div class="seg" style="grid-template-columns:repeat(3,minmax(0,1fr))">${[['auto','Automatico'],['light','Chiaro'],['dark','Scuro']].map(([k,l])=>`<button class="${theme===k?'on':''}" data-act="setTheme" data-t="${k}" aria-pressed="${theme===k}">${l}</button>`).join('')}</div><p class="muted small">Automatico segue il tema del telefono.</p></div>
   <div class="card pad between"><div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span class="small muted">Accesso come</span><span style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis">${esc(pname(me))} \u00b7 ${esc(userEmail)}</span></div><button class="btn plain" style="width:auto;padding:0 18px;flex-shrink:0" data-act="logout">Esci</button></div>
+  <div class="field"><label class="lbl" for="n1">Il tuo nome</label><div class="row" style="gap:8px"><input id="n1" class="in" style="flex:1" value="${esc(pname(me))}" maxlength="20"><button class="iconbtn" style="width:48px;height:48px;background:var(--btn);border:0" data-act="saveNames" aria-label="Salva nome">${svg(UI.check,22,2.5,'#fff')}</button></div></div>
+  <div class="field"><span class="lbl">Tema</span><div class="seg" style="grid-template-columns:repeat(3,minmax(0,1fr))">${[['auto','Automatico'],['light','Chiaro'],['dark','Scuro']].map(([k,l])=>`<button class="${theme===k?'on':''}" data-act="setTheme" data-t="${k}" aria-pressed="${theme===k}">${l}</button>`).join('')}</div><p class="muted small">Automatico segue il tema del telefono.</p></div>
   <button class="btn plain" data-act="go" data-v="categorie">Gestisci categorie</button>
   <button class="btn plain" data-act="go" data-v="budget">Budget e avvisi</button>
   <div class="card between" style="padding:8px 8px 8px 16px;min-height:60px"><span style="font-size:15px;font-weight:700">Copia di sicurezza</span><div class="row" style="gap:6px"><button class="btn plain" style="width:auto;height:44px;padding:0 14px" data-act="backup">Copia</button><button class="btn plain" style="width:auto;height:44px;padding:0 14px" data-act="restore">Importa</button></div></div>
-  <button class="btn danger" data-act="reset">${ui.confirm==='reset'?'Tocca di nuovo: cancella tutto per entrambi':'Cancella tutti i dati'}</button>
   <details class="card" data-det="notes" ${ui.det.notes?'open':''}><summary class="between" style="padding:16px;min-height:56px"><span style="font-size:15px;font-weight:700">Note di rilascio</span><span class="chev" style="display:flex">${svg(UI.right,18,2.2,'var(--muted)')}</span></summary>
     <div style="padding:0 16px 12px;display:flex;flex-direction:column">${RELEASES.map((r,i)=>`<details data-det="v${r.v}" ${(ui.det['v'+r.v]??i===0)?'open':''} style="border-top:1px solid var(--line2)"><summary class="between" style="padding:12px 0;min-height:48px"><span style="font-size:14px;font-weight:700">Versione ${r.v} <span class="muted" style="font-weight:500">del ${r.date}</span></span><span class="chev" style="display:flex">${svg(UI.right,16,2.2,'var(--muted)')}</span></summary><ul style="margin:0 0 12px;padding-left:20px;font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:4px">${r.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul></details>`).join('')}</div>
   </details>
+  <button class="btn danger" style="margin-top:6px" data-act="reset">Cancella tutti i dati</button>
   </div>`;
 }
 
@@ -714,6 +719,17 @@ function sheetRimb(){
   <button class="btn" data-act="saveRimb">Salva rimborso</button>
   </div></div>`;
 }
+function sheetWipe(){
+  const f=ui.form;
+  return`<div role="dialog" aria-modal="true" aria-labelledby="wipeT" style="position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:calc(20px + env(safe-area-inset-top,0px)) 20px calc(20px + env(safe-area-inset-bottom,0px))">
+  <div class="card" style="width:100%;max-width:420px;max-height:100%;overflow-y:auto;padding:22px 20px 18px;display:flex;flex-direction:column;gap:14px;animation:up .22s ease-out">
+    <div class="row" style="gap:12px"><span style="width:44px;height:44px;border-radius:14px;background:color-mix(in srgb,var(--danger) 15%,var(--card));display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg(UI.warn,22,2,'var(--danger)')}</span><h2 id="wipeT" style="margin:0;font-size:20px">Cancellare tutto?</h2></div>
+    <p style="font-size:15px;line-height:1.5">Stai per eliminare <b>per sempre</b> tutte le spese, le categorie, i budget, le ricorrenti e i pareggi, <b>per entrambi</b>. Non si pu\u00f2 annullare.</p>
+    <div class="field"><label class="lbl" for="wp">Per confermare, scrivi la tua password</label><input id="wp" class="in" type="password" autocomplete="current-password" value="${esc(f.pw||'')}" data-f="pw" data-enter="wipeGo"></div>
+    ${ui.err?`<p class="err">${esc(ui.err)}</p>`:''}
+    <div class="grid2"><button class="btn plain" style="height:50px" data-act="wipeCancel" ${ui.busy?'disabled':''}>Annulla</button><button class="btn danger-solid" style="height:50px;font-size:15px" data-act="wipeGo" ${ui.busy?'disabled':''}>${ui.busy?'Verifica\u2026':'Cancella tutto'}</button></div>
+  </div></div>`;
+}
 function sheetNews(){
   const l=ui.form.list;
   return`<div role="dialog" aria-modal="true" aria-labelledby="newsT" style="position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:calc(20px + env(safe-area-inset-top,0px)) 20px calc(20px + env(safe-area-inset-bottom,0px))">
@@ -754,7 +770,7 @@ function renderSheet(keepFocus){
   const el=document.getElementById('sheet');
   const fid=keepFocus&&document.activeElement&&document.activeElement.id;
   const sc=el.firstElementChild?el.firstElementChild.scrollTop:0;
-  const S2={exp:sheetExp,rec:sheetRec,cat:sheetCat,backup:sheetBackup,news:sheetNews,rimb:sheetRimb}[ui.sheet];
+  const S2={exp:sheetExp,rec:sheetRec,cat:sheetCat,backup:sheetBackup,news:sheetNews,rimb:sheetRimb,wipe:sheetWipe}[ui.sheet];
   el.innerHTML=S2?S2():'';
   document.body.style.overflow=S2?'hidden':'';
   if(el.firstElementChild)el.firstElementChild.scrollTop=sc;
@@ -874,7 +890,7 @@ const ACT={
   },
   closeNews(){setSeen();ui.sheet=null;ui.form=null;render()},
   finishSetup(){if(!S.categories.length)return;S.setupDone=true;setSeen();newsChecked=true;save();ui.view='home';render()},
-  saveNames(){const a=document.getElementById('n1').value.trim(),b=document.getElementById('n2').value.trim();if(!a||!b){toast('I nomi non possono essere vuoti.');return}S.people.p1.name=a;S.people.p2.name=b;save();render();toast('Nomi salvati')},
+  saveNames(){const v=document.getElementById('n1').value.trim();if(!v){toast('Il nome non pu\u00f2 essere vuoto.');return}S.people[me].name=v;save();render();toast('Nome salvato')},
   backup(){ui.form={mode:'out',text:JSON.stringify(S)};ui.sheet='backup';ui.err='';renderSheet()},
   restore(){ui.form={mode:'in',text:''};ui.sheet='backup';ui.err='';renderSheet()},
   copyBk(){const t=document.getElementById('bk');t.focus();t.select();let ok=false;
@@ -887,7 +903,24 @@ const ACT={
       S.setupDone=true;runRecurring();save();ui.sheet=null;ui.form=null;ui.view='home';render();toast('Dati importati')}
     catch(e){ui.err='Questo testo non è una copia di PinQuattrini valida.';renderSheet()}
   },
-  reset(){if(needConfirm('reset')){render();return}for(const c of COLLS)S[c]=[];S.setupDone=false;save();ui.view='home';render();toast('Dati cancellati')},
+  reset(){ui.form={pw:''};ui.sheet='wipe';ui.err='';ui.busy=false;renderSheet();setTimeout(()=>{const i=document.getElementById('wp');if(i)i.focus()},60)},
+  wipeCancel(){ui.sheet=null;ui.form=null;ui.err='';ui.busy=false;render()},
+  wipeGo(){
+    const f=ui.form||{};
+    if(ui.busy)return;
+    if(!f.pw){ui.err='Scrivi la password.';renderSheet(true);return}
+    const u=auth.currentUser;
+    if(!u){ui.err='Sessione scaduta: esci e rientra, poi riprova.';renderSheet(true);return}
+    ui.err='';ui.busy=true;renderSheet(true);
+    reauthenticateWithCredential(u,EmailAuthProvider.credential(userEmail,f.pw)).then(()=>{
+      ui.busy=false;ui.sheet=null;ui.form=null;
+      for(const c of COLLS)S[c]=[];S.setupDone=false;save();ui.view='home';render();toast('Tutti i dati sono stati cancellati');
+    }).catch(e=>{
+      ui.busy=false;
+      ui.err=(e.code==='auth/invalid-credential'||e.code==='auth/wrong-password')?'Password non corretta.':e.code==='auth/too-many-requests'?'Troppi tentativi. Aspetta qualche minuto e riprova.':e.code==='auth/network-request-failed'?'Nessuna connessione. Controlla la rete e riprova.':e.code==='auth/missing-password'?'Scrivi la password.':'Verifica non riuscita ('+(e.code||'errore')+').';
+      renderSheet(true);
+    });
+  },
   login(){
     const f=ui.form||{};const em=(f.email||'').trim();
     if(!em||!f.pw){ui.err='Scrivi email e password.';render();return}
