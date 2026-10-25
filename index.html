@@ -56,7 +56,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.wrap{max-width:520px;margin:0 auto;padding:20px 20px 120px;display:flex;flex-direction:column;gap:14px}
+.wrap{max-width:520px;margin:0 auto;padding:20px 20px 160px;display:flex;flex-direction:column;gap:14px}
 h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.02em}
 h2{margin:6px 0 0;font-size:17px;font-weight:800}
 p{margin:0}
@@ -116,13 +116,18 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card
 nav.tabs .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
 nav.tabs button{height:64px;border:0;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;font-weight:600}
 nav.tabs button.on{color:var(--accent);font-weight:700}
-.fab{position:fixed;right:max(20px,calc(50% - 240px));bottom:calc(84px + env(safe-area-inset-bottom,0px));width:60px;height:60px;border-radius:20px;border:0;background:var(--fab);color:var(--fab-ink);display:flex;align-items:center;justify-content:center;z-index:21;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));width:60px;height:60px;border-radius:20px;border:0;background:var(--fab);color:var(--fab-ink);display:flex;align-items:center;justify-content:center;z-index:21;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .sheet{position:fixed;inset:0;z-index:40;background:var(--bg);overflow-y:auto;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);animation:up .22s ease-out}
 .sheet .wrap{padding-bottom:32px;min-height:100%}
+details>summary{list-style:none;cursor:pointer}
+details>summary::-webkit-details-marker{display:none}
+details .chev{transition:transform .2s}
+details[open]>summary .chev{transform:rotate(90deg)}
+.ascii{margin:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;line-height:1.25;color:var(--muted);text-align:left;display:inline-block}
 @keyframes up{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion: reduce){.sheet{animation:none}}
 .err{color:var(--danger);font-size:14px;font-weight:600}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(160px + env(safe-area-inset-bottom,0px));background:var(--fab);color:var(--fab-ink);padding:12px 18px;border-radius:14px;font-size:14px;font-weight:600;z-index:60;max-width:90vw;text-align:center}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom,0px));background:var(--fab);color:var(--fab-ink);padding:12px 18px;border-radius:14px;font-size:14px;font-weight:600;z-index:60;max-width:90vw;text-align:center}
 .icongrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
 .icongrid button{height:48px;border-radius:12px;border:1px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;padding:0}
 .icongrid button.on{border:2px solid var(--accent);background:var(--accent-soft)}
@@ -171,8 +176,19 @@ let me=null;
 let authState='loading',userEmail='',dataError='';
 
 /* ============ Versione e note di rilascio ============ */
-const VERSION='1.0';
+const VERSION='1.2';
 const RELEASES=[
+  {v:'1.2',date:'25 ottobre 2026',notes:[
+    'Riepilogo: il grafico degli ultimi 6 mesi ora mostra l\u2019importo sopra ogni barra',
+    'Sotto il grafico: media al mese e confronto con il mese precedente'
+  ]},
+  {v:'1.1',date:'25 ottobre 2026',notes:[
+    'Schermata di accesso centrata e pi\u00f9 pulita, con due pinguini in ASCII e il numero di versione in fondo',
+    'Note di rilascio richiudibili, versione per versione',
+    'Pulsante + centrato, fisso sopra la barra in basso',
+    'In Home accanto al mese c\u2019\u00e8 anche l\u2019anno',
+    'Nelle ultime spese la data \u00e8 nel formato gg/mm/aaaa'
+  ]},
   {v:'1.0',date:'25 ottobre 2026',notes:[
     'Prima versione online: accesso con email e password, riservato ai vostri due account',
     'Spese, categorie, budget, ricorrenti e saldo condivisi in tempo reale tra i vostri due telefoni',
@@ -375,7 +391,7 @@ function runRecurring(){
 }
 
 /* ============ Stato interfaccia ============ */
-let ui={view:'home',month:curMonth(),sheet:null,form:null,filter:'',open:'',confirm:'',err:''};
+let ui={det:{},view:'home',month:curMonth(),sheet:null,form:null,filter:'',open:'',confirm:'',err:''};
 let toastT;
 function toast(msg){const t=document.getElementById('toast');t.innerHTML=`<div class="toast">${esc(msg)}</div>`;clearTimeout(toastT);toastT=setTimeout(()=>t.innerHTML='',2600)}
 
@@ -385,7 +401,7 @@ function monthNav(){return`<div class="between"><button class="iconbtn" data-act
 function expRow(e,showDate){
   const c=catOf(e.cat),s=subOf(c,e.sub);
   const title=e.desc||(s?s.name:c.name);
-  const meta=[c.name+(s?' › '+s.name:''),showDate?dayLabel(e.date):null,e.recId?'ricorrente':null,'pagato da '+who(e.payer),splitLabel(e)].filter(Boolean).join(' · ');
+  const meta=[c.name+(s?' › '+s.name:''),showDate?e.date.split('-').reverse().join('/'):null,e.recId?'ricorrente':null,'pagato da '+who(e.payer),splitLabel(e)].filter(Boolean).join(' · ');
   return`<button class="item" data-act="editExp" data-id="${e.id}">${tile(c)}<span class="grow"><span class="t">${esc(title)}</span><span class="s">${esc(meta)}</span></span><span class="amt">${fmt(e.amount)}</span></button>`;
 }
 function budgetAlerts(m){
@@ -399,7 +415,7 @@ function vHome(){
   const al=budgetAlerts(m);
   const last=sortExp(ex).slice(0,6);
   return`<div class="wrap">
-  <div class="between"><div><p class="muted" style="font-size:14px">Ciao ${esc(pname(me))}</p><h1>${monthName(m)}</h1></div></div>
+  <div class="between"><div><p class="muted" style="font-size:14px">Ciao ${esc(pname(me))}</p><h1>${monthLabel(m)}</h1></div></div>
   <div class="card pad" style="display:flex;flex-direction:column;gap:12px">
     <div class="between" style="align-items:baseline"><span class="muted" style="font-size:14px;font-weight:600">Speso questo mese</span><span style="font-size:24px;font-weight:800">${fmt(tot)}</span></div>
     <div class="split">${tot?`<span style="flex:${paid1};background:var(--${me})"></span><span style="flex:${paid2};background:var(--${other(me)})"></span>`:''}</div>
@@ -445,8 +461,12 @@ function vRiepilogo(){
     if(open){const bs={};for(const e of ex.filter(e=>e.cat===r.id)){const k=e.sub||'';bs[k]=(bs[k]||0)+e.amount}
       subs=Object.entries(bs).sort((a,b)=>b[1]-a[1]).map(([k,a])=>`<div class="between small" style="padding:8px 14px 8px 66px;border-bottom:1px solid var(--line2)"><span>${esc(k?(subOf(r.c,k)||{name:'Altro'}).name:'Senza sottocategoria')}</span><span style="font-weight:700">${fmt(a)}</span></div>`).join('')}
     return`<button class="item" data-act="openCat" data-id="${r.id}" aria-expanded="${open}">${tile(r.c)}<span class="grow"><span class="t">${esc(r.c.name)}</span><span class="s">${pct}% del mese · tocca per ${open?'chiudere':'il dettaglio'}</span></span><span class="amt">${fmt(r.a)}</span></button>${subs}`}).join('')}</div>`:''}
-  <div class="card pad" style="display:flex;flex-direction:column;gap:12px"><span style="font-size:14px;font-weight:700">Ultimi 6 mesi</span>
-    <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;align-items:end;height:120px">${months.map(x=>`<div style="display:flex;flex-direction:column;align-items:center;gap:6px" title="${monthLabel(x.m)}: ${fmt(x.t)}"><span style="width:100%;height:${Math.max(4,Math.round(x.t/max*84))}px;border-radius:6px;background:${x.m===ui.month?'var(--accent)':'var(--bar-off)'}"></span><span style="font-size:12px;${x.m===ui.month?'font-weight:700':'color:var(--muted)'}">${monthName(x.m).slice(0,3).toLowerCase()}</span></div>`).join('')}</div>
+  <div class="card pad" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:700">Spesa totale degli ultimi 6 mesi</span><span class="muted small">Quanto avete speso in tutto ogni mese</span></div>
+    <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;align-items:end;height:150px">${months.map(x=>{const cur=x.m===ui.month;return`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0"><span style="font-size:11px;white-space:nowrap;${cur?'font-weight:800':'color:var(--muted);font-weight:600'}">${x.t?fmtShort(x.t):'\u2013'}</span><span style="width:100%;height:${x.t?Math.max(6,Math.round(x.t/max*96)):3}px;border-radius:6px;background:${cur?'var(--accent)':'var(--bar-off)'}"></span><span style="font-size:12px;${cur?'font-weight:700':'color:var(--muted)'}">${monthName(x.m).slice(0,3).toLowerCase()}</span></div>`}).join('')}</div>
+    ${(()=>{const withData=months.filter(x=>x.t>0);const avg=withData.length?Math.round(sum(withData.map(x=>({amount:x.t})))/withData.length):0;const cur=months[5].t,prev=months[4].t;const diff=cur-prev;
+      const cmp=prev?`<span style="font-size:17px;font-weight:800;color:${diff>0?'var(--danger)':'var(--accent)'}">${diff>0?'+':diff<0?'\u2212':''}${fmt(Math.abs(diff))}</span><span class="muted small">${diff>0?'in pi\u00f9':diff<0?'in meno':'uguale'}${diff?' ('+Math.round(Math.abs(diff)/prev*100)+'%)':''}</span>`:`<span style="font-size:17px;font-weight:800">\u2013</span><span class="muted small">nessuna spesa a ${monthName(months[4].m).toLowerCase()}</span>`;
+      return`<div class="grid2" style="border-top:1px solid var(--line2);padding-top:12px"><div style="display:flex;flex-direction:column;gap:2px"><span class="muted small">Media al mese</span><span style="font-size:17px;font-weight:800">${withData.length?fmt(avg):'\u2013'}</span><span class="muted small">${withData.length?'su '+withData.length+(withData.length===1?' mese':' mesi')+' con spese':'ancora nessuna spesa'}</span></div><div style="display:flex;flex-direction:column;gap:2px"><span class="muted small">${monthName(months[5].m)} rispetto a ${monthName(months[4].m).toLowerCase()}</span>${cmp}</div></div>`})()}
   </div>
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
     <button class="btn plain" data-act="go" data-v="budget">Budget</button>
@@ -540,9 +560,9 @@ function vImpostazioni(){
   <div class="card pad" style="display:flex;flex-direction:column;gap:10px"><span style="font-size:15px;font-weight:700">Copia di sicurezza</span><p class="muted small" style="line-height:1.5">Copia tutti i dati in un testo da conservare. Con Importa potete caricare una copia, anche quella della versione di prova: sostituisce i dati attuali per entrambi.</p>
     <div class="grid2"><button class="btn plain" data-act="backup">Copia i dati</button><button class="btn plain" data-act="restore">Importa</button></div></div>
   <button class="btn danger" data-act="reset">${ui.confirm==='reset'?'Tocca di nuovo: cancella tutto per entrambi':'Cancella tutti i dati'}</button>
-  <div class="card pad" style="display:flex;flex-direction:column;gap:12px"><span style="font-size:15px;font-weight:700">Note di rilascio</span>
-    ${RELEASES.map(r=>`<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:700">Versione ${r.v} <span class="muted" style="font-weight:500">del ${r.date}</span></span><ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:4px">${r.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul></div>`).join('<hr style="border:0;border-top:1px solid var(--line2);margin:4px 0">')}
-  </div>
+  <details class="card" data-det="notes" ${ui.det.notes?'open':''}><summary class="between" style="padding:16px;min-height:56px"><span style="font-size:15px;font-weight:700">Note di rilascio</span><span class="chev" style="display:flex">${svg(UI.right,18,2.2,'var(--muted)')}</span></summary>
+    <div style="padding:0 16px 12px;display:flex;flex-direction:column">${RELEASES.map((r,i)=>`<details data-det="v${r.v}" ${(ui.det['v'+r.v]??i===0)?'open':''} style="border-top:1px solid var(--line2)"><summary class="between" style="padding:12px 0;min-height:48px"><span style="font-size:14px;font-weight:700">Versione ${r.v} <span class="muted" style="font-weight:500">del ${r.date}</span></span><span class="chev" style="display:flex">${svg(UI.right,16,2.2,'var(--muted)')}</span></summary><ul style="margin:0 0 12px;padding-left:20px;font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:4px">${r.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul></details>`).join('')}</div>
+  </details>
   <p class="muted small" style="text-align:center">PinQuattrini ${VERSION}</p></div>`;
 }
 
@@ -550,18 +570,22 @@ const LOGO=()=>`<img src="icon.png" alt="" width="72" height="72" style="border-
 function vLoading(){
   return`<div class="wrap" style="min-height:80vh;align-items:center;justify-content:center;text-align:center;gap:16px">${LOGO()}${dataError?`<p class="err" style="max-width:320px">${esc(dataError)}</p><button class="btn plain" style="width:auto;padding:0 20px" data-act="logout">Esci</button>`:`<p class="muted">Caricamento\u2026</p>`}</div>`;
 }
+const ASCII=String.raw`     ♥
+  (^><^)
+  //\/\\
+  V_/\_V`;
 function vLogin(){
   const f=ui.form||{};
-  return`<div class="wrap" style="padding-top:64px;gap:32px">
-  <div style="display:flex;flex-direction:column;gap:12px">${LOGO()}<h1 style="font-size:34px">PinQuattrini</h1><p class="muted" style="font-size:16px">Le spese di casa, in due.</p></div>
-  <div style="display:flex;flex-direction:column;gap:14px">
+  return`<div class="wrap" style="min-height:100vh;min-height:100dvh;padding-top:48px;padding-bottom:32px;gap:28px;align-items:center;text-align:center">
+  <div style="display:flex;flex-direction:column;gap:12px;align-items:center">${LOGO()}<h1 style="font-size:34px">PinQuattrini</h1><p class="muted" style="font-size:16px">Le spese di casa, in due.</p></div>
+  <div style="display:flex;flex-direction:column;gap:14px;width:100%;max-width:400px;text-align:left">
     <div class="field"><label class="lbl" for="le">Email</label><input id="le" class="in" type="email" autocomplete="username" inputmode="email" value="${esc(f.email||'')}" data-f="email"></div>
     <div class="field"><label class="lbl" for="lp">Password</label><input id="lp" class="in" type="password" autocomplete="current-password" value="${esc(f.pw||'')}" data-f="pw" data-enter="login"></div>
-    ${ui.err?`<p class="err">${esc(ui.err)}</p>`:''}
+    ${ui.err?`<p class="err" style="text-align:center">${esc(ui.err)}</p>`:''}
     <button class="btn" data-act="login" ${ui.busy?'disabled':''}>${ui.busy?'Accesso in corso\u2026':'Entra'}</button>
     <button class="link" style="align-self:center" data-act="forgot">Password dimenticata?</button>
   </div>
-  <div class="card" style="padding:14px 16px;display:flex;gap:10px;align-items:flex-start">${svg(UI.lock,20,2,'var(--accent)')}<p class="muted small" style="line-height:1.45">Accesso riservato a due account. Nessuna registrazione pubblica: i dati li vedete solo voi.</p></div>
+  <div style="margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:8px"><pre class="ascii" aria-hidden="true">${esc(ASCII)}</pre><p class="muted small">PinQuattrini ${VERSION}</p></div>
   </div>`;
 }
 function vDenied(){
@@ -852,6 +876,7 @@ document.addEventListener('input',ev=>{
   if(ui.sheet==='rimb'){const af=document.getElementById('after');if(af)af.innerHTML=rimbAfter()}
   if(k==='amount'&&(ui.sheet==='exp'||ui.sheet==='rec')){const sh=document.getElementById('shares');if(sh){const tmp=document.createElement('div');tmp.innerHTML=payerSplit(ui.form);const n=tmp.querySelector('#shares');if(n)sh.innerHTML=n.innerHTML}}
 });
+document.addEventListener('toggle',ev=>{const t=ev.target;if(t.dataset&&t.dataset.det)ui.det[t.dataset.det]=t.open},true);
 document.addEventListener('keydown',ev=>{
   const t=ev.target;
   if(ev.key==='Enter'&&t.dataset&&t.dataset.enter){ev.preventDefault();ACT[t.dataset.enter]()}
