@@ -1,0 +1,12 @@
+{
+  "name": "PinQuattrini",
+  "short_name": "PinQuattrini",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4F4F1",
+  "theme_color": "#0B7A55",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
