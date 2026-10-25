@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.5">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.5">
-<link rel="apple-touch-icon" href="icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1.8">
 <title>PinQuattrini</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
@@ -128,8 +128,10 @@ details>summary{list-style:none;cursor:pointer}
 details>summary::-webkit-details-marker{display:none}
 details .chev{transition:transform .2s}
 details[open]>summary .chev{transform:rotate(90deg)}
-.brand{font-size:14px;font-weight:800;color:var(--accent);letter-spacing:-.01em;white-space:nowrap;flex-shrink:0}
-.brand.top{align-self:flex-start;padding-top:3px}
+.brand{display:inline-flex;align-items:center;gap:7px;color:var(--accent);flex-shrink:0;line-height:1;white-space:nowrap}
+.brand .wm{font-size:16px;font-weight:500;letter-spacing:-.035em}
+.brand .wm b{font-weight:800}
+.brand.top{align-self:flex-start}
 #app>.wrap{min-height:100vh;min-height:100dvh}
 .foot{margin-top:auto;padding-top:28px;display:flex;flex-direction:column;align-items:center;gap:8px}
 .ascii{margin:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;line-height:1.25;color:var(--muted);text-align:center;display:inline-block}
@@ -185,8 +187,15 @@ let me=null;
 let authState='loading',userEmail='',dataError='';
 
 /* ============ Versione e note di rilascio ============ */
-const VERSION='1.7';
+const VERSION='1.9';
 const RELEASES=[
+  {v:'1.9',date:'25 ottobre 2026',notes:[
+    'In alto a destra ora c\u2019\u00e8 il logo con i due pinguini in un solo colore e la scritta PinQuattrini in stile logo',
+    'Il titolo del Budget \u00e8 stato accorciato (es. \u201cBudget \u00b7 ott\u201d) per fare spazio al logo'
+  ]},
+  {v:'1.8',date:'25 ottobre 2026',notes:[
+    'Icona per la schermata Home di iPhone rifatta nel formato richiesto da iOS (180\u00d7180, senza trasparenze)'
+  ]},
   {v:'1.7',date:'25 ottobre 2026',notes:[
     'Pulsante + di nuovo a destra, sopra la barra in basso'
   ]},
@@ -427,7 +436,7 @@ let toastT;
 function toast(msg){const t=document.getElementById('toast');t.innerHTML=`<div class="toast">${esc(msg)}</div>`;clearTimeout(toastT);toastT=setTimeout(()=>t.innerHTML='',2600)}
 
 /* ============ Viste ============ */
-function header(title,back){return`<div class="between" style="gap:10px"><div class="row" style="min-width:0">${back?`<button class="iconbtn" data-act="go" data-v="${back}" aria-label="Indietro">${svg(UI.left,18,2.2)}</button>`:''}<h1 style="font-size:${back?22:26}px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</h1></div><span class="brand">PinQuattrini</span></div>`}
+function header(title,back){return`<div class="between" style="gap:10px"><div class="row" style="min-width:0">${back?`<button class="iconbtn" data-act="go" data-v="${back}" aria-label="Indietro">${svg(UI.left,18,2.2)}</button>`:''}<h1 style="font-size:${back?22:26}px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</h1></div>${brand()}</div>`}
 function monthNav(){return`<div class="between"><button class="iconbtn" data-act="month" data-n="-1" aria-label="Mese precedente">${svg(UI.left,18,2.2)}</button><h1 style="font-size:20px">${monthLabel(ui.month)}</h1><button class="iconbtn" data-act="month" data-n="1" aria-label="Mese successivo" ${ui.month>=curMonth()?'disabled style="opacity:.35"':''}>${svg(UI.right,18,2.2)}</button></div>`}
 function expRow(e,showDate){
   const c=catOf(e.cat),s=subOf(c,e.sub);
@@ -446,7 +455,7 @@ function vHome(){
   const al=budgetAlerts(m);
   const last=sortExp(ex).slice(0,6);
   return`<div class="wrap">
-  <div class="between"><div><p class="muted" style="font-size:14px">Ciao ${esc(pname(me))}</p><h1>${monthLabel(m)}</h1></div><span class="brand top">PinQuattrini</span></div>
+  <div class="between"><div><p class="muted" style="font-size:14px">Ciao ${esc(pname(me))}</p><h1>${monthLabel(m)}</h1></div>${brand('top')}</div>
   <div class="card pad" style="display:flex;flex-direction:column;gap:12px">
     <div class="between" style="align-items:baseline"><span class="muted" style="font-size:14px;font-weight:600">Speso questo mese</span><span style="font-size:24px;font-weight:800">${fmt(tot)}</span></div>
     <div class="split">${tot?`<span style="flex:${paid1};background:var(--${me})"></span><span style="flex:${paid2};background:var(--${other(me)})"></span>`:''}</div>
@@ -478,7 +487,7 @@ function vRiepilogo(){
   const arcs=rows.map(r=>{const len=r.a/tot*C;const s=`<circle cx="75" cy="75" r="60" stroke="var(--c-${r.c.color})" stroke-dasharray="${Math.max(len-1.5,0.5)} ${C}" stroke-dashoffset="${-off}"></circle>`;off+=len;return s}).join('');
   const months=[];for(let i=5;i>=0;i--){const m=addMonth(ui.month,-i);months.push({m,t:sum(inMonth(m))})}
   const max=Math.max(...months.map(x=>x.t),1);
-  return`<div class="wrap"><div class="between"><h1>Riepilogo</h1><span class="brand">PinQuattrini</span></div>${monthNav()}
+  return`<div class="wrap"><div class="between"><h1>Riepilogo</h1>${brand()}</div>${monthNav()}
   <div class="card pad" style="display:flex;align-items:center;gap:18px">
     <div style="position:relative;width:150px;height:150px;flex-shrink:0">
       <svg width="150" height="150" viewBox="0 0 150 150" role="img" aria-label="Ripartizione per categoria"><g transform="rotate(-90 75 75)" fill="none" stroke-width="18"><circle cx="75" cy="75" r="60" stroke="var(--track)"></circle>${tot?arcs:''}</g></svg>
@@ -507,7 +516,7 @@ function vBudget(){
   const withB=S.categories.filter(c=>c.budget>0);
   const bt=withB.reduce((t,c)=>t+c.budget,0),st=sum(ex.filter(e=>withB.some(c=>c.id===e.cat)));
   const tp=bt?Math.round(st/bt*100):0;
-  return`<div class="wrap">${header('Budget di '+monthName(m).toLowerCase(),'impostazioni')}
+  return`<div class="wrap">${header('Budget · '+monthName(m).slice(0,3).toLowerCase(),'impostazioni')}
   ${bt?`<div style="background:var(--fab);color:var(--fab-ink);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:10px">
     <div class="between"><span style="font-size:13px;font-weight:600;opacity:.85">Speso nelle categorie con budget</span><span style="font-size:13px;font-weight:700">${tp}%</span></div>
     <span style="font-size:26px;font-weight:800">${fmtShort(st)} <span style="font-size:16px;font-weight:600;opacity:.75">di ${fmtShort(bt)}</span></span>
@@ -530,7 +539,7 @@ function nextOcc(r){const cm=curMonth(),td=new Date().getDate();let m=cm;if(r.do
 function vRicorrenti(){
   const act=S.recurring.filter(r=>r.active);
   const nx=act.map(r=>({r,d:nextOcc(r)})).sort((a,b)=>a.d.localeCompare(b.d))[0];
-  return`<div class="wrap"><div class="between"><h1>Ricorrenti</h1><span class="brand">PinQuattrini</span></div>
+  return`<div class="wrap"><div class="between"><h1>Ricorrenti</h1>${brand()}</div>
   <p class="muted" style="font-size:14px;line-height:1.5">Vengono aggiunte da sole ogni mese nel giorno scelto, con chi paga e la divisione già impostati.</p>
   ${nx?`<div style="background:color-mix(in srgb,var(--p1) 14%,var(--card));border-radius:16px;padding:14px 16px" class="between"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;font-weight:700;color:var(--p1-ink)">Prossima</span><span style="font-size:15px;font-weight:700">${esc(nx.r.desc||catOf(nx.r.cat).name)} · ${new Date(nx.d+'T12:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'long'})}</span></div><span style="font-size:15px;font-weight:800">${fmt(nx.r.amount)}</span></div>`:''}
   ${S.recurring.length?`<div class="card list">${S.recurring.map(r=>{const c=catOf(r.cat),s=subOf(c,r.sub);return`<div class="item" style="padding-right:8px">
@@ -547,7 +556,7 @@ function vSaldo(){
   const paid=p=>sum(ex.filter(e=>e.payer===p)),sh=p=>ex.reduce((t,e)=>t+share(e,p),0);
   const big=n>0?`${esc(pname(o))} ti deve ${fmt(n)}`:n<0?`Devi ${fmt(-n)} a ${esc(pname(o))}`:'Siete pari';
   const hist=S.settlements.slice().sort((a,b)=>b.createdAt-a.createdAt);
-  return`<div class="wrap"><div class="between"><h1>Saldo</h1><span class="brand">PinQuattrini</span></div>
+  return`<div class="wrap"><div class="between"><h1>Saldo</h1>${brand()}</div>
   <div class="hero"><span style="font-size:13px;font-weight:600;opacity:.9">${ls?'Dall’ultimo pareggio ('+new Date(ls.createdAt).toLocaleDateString('it-IT',{day:'numeric',month:'short'})+')':'Da quando usate l’app'}</span><span class="big">${big}</span></div>
   <div class="card" style="padding:4px 16px">
     <div class="tablerow small muted" style="font-weight:700;padding:12px 0"><span></span><span style="text-align:right">Ha pagato</span><span style="text-align:right">Sua parte</span></div>
@@ -576,7 +585,7 @@ function vCategorie(first){
 
 function vImpostazioni(){
   const p=S.people;
-  return`<div class="wrap"><div class="between"><h1>Opzioni</h1><span class="brand">PinQuattrini</span></div>
+  return`<div class="wrap"><div class="between"><h1>Opzioni</h1>${brand()}</div>
   <div class="field"><span class="lbl">I vostri nomi</span><div class="row" style="gap:8px"><label class="sr" for="n1">Persona 1</label><input id="n1" class="in" style="flex:1" value="${esc(p.p1.name)}" maxlength="20"><label class="sr" for="n2">Persona 2</label><input id="n2" class="in" style="flex:1" value="${esc(p.p2.name)}" maxlength="20"><button class="iconbtn" style="width:48px;height:48px;background:var(--btn);border:0" data-act="saveNames" aria-label="Salva nomi">${svg(UI.check,22,2.5,'#fff')}</button></div></div>
   <div class="field"><span class="lbl">Tema</span><div class="seg" style="grid-template-columns:repeat(3,minmax(0,1fr))">${[['auto','Automatico'],['light','Chiaro'],['dark','Scuro']].map(([k,l])=>`<button class="${theme===k?'on':''}" data-act="setTheme" data-t="${k}" aria-pressed="${theme===k}">${l}</button>`).join('')}</div><p class="muted small">Automatico segue il tema del telefono.</p></div>
   <div class="card pad between"><div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span class="small muted">Accesso come</span><span style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis">${esc(pname(me))} \u00b7 ${esc(userEmail)}</span></div><button class="btn plain" style="width:auto;padding:0 18px;flex-shrink:0" data-act="logout">Esci</button></div>
@@ -594,6 +603,8 @@ const LOGO=()=>`<img src="icon.png" alt="" width="72" height="72" style="border-
 function vLoading(){
   return`<div class="wrap" style="min-height:80vh;align-items:center;justify-content:center;text-align:center;gap:16px">${LOGO()}${dataError?`<p class="err" style="max-width:320px">${esc(dataError)}</p><button class="btn plain" style="width:auto;padding:0 20px" data-act="logout">Esci</button>`:`<p class="muted">Caricamento\u2026</p>`}</div>`;
 }
+const LOGO_MONO=`<svg class="pq-ic" viewBox="88 64 336 336" width="30" height="30" aria-hidden="true" focusable="false"><defs><clipPath id="pqc"><path clip-rule="evenodd" d="M0 0H512V512H0ZM148 294L148 312C148 332.99 165.01 350 186 350C206.99 350 224 332.99 224 312L224 294C224 273.01 206.99 256 186 256C165.01 256 148 273.01 148 294ZM168 206C168 221.46 181.43 234 198 234C214.57 234 228 221.46 228 206C228 190.54 214.57 178 198 178C181.43 178 168 190.54 168 206ZM288 294L288 312C288 332.99 305.01 350 326 350C346.99 350 364 332.99 364 312L364 294C364 273.01 346.99 256 326 256C305.01 256 288 273.01 288 294ZM284 206C284 221.46 297.43 234 314 234C330.57 234 344 221.46 344 206C344 190.54 330.57 178 314 178C297.43 178 284 190.54 284 206Z"/></clipPath><g id="pqb"><rect x="-82" y="70" width="34" height="86" rx="17" transform="rotate(16 -65 113)"/><rect x="-50" y="174" width="40" height="22" rx="11"/><rect x="-2" y="174" width="40" height="22" rx="11"/><rect x="-62" y="-20" width="124" height="208" rx="62"/><path d="M52 32Q56 30 60 31L80 40Q83 42 80 44L60 53Q56 54 52 52Z"/></g></defs><g fill="currentColor" clip-path="url(#pqc)"><use href="#pqb" transform="translate(176 172)"/><use href="#pqb" transform="translate(336 172) scale(-1 1)"/></g><path fill="currentColor" d="M256 170C220 148 214 110 238 103C248 100 254 106 256 113C258 106 264 100 274 103C298 110 292 148 256 170Z"/></svg>`;
+const brand=(c='')=>`<span class="brand ${c}">${LOGO_MONO}<span class="wm"><b>Pin</b>Quattrini</span></span>`;
 const ASCII=String.raw`♥
 (^><^)
 //\/\\
