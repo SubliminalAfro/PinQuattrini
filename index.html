@@ -8,7 +8,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="PinQuattrini">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon.png">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.5">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.5">
 <link rel="apple-touch-icon" href="icon.png">
 <title>PinQuattrini</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -180,8 +181,12 @@ let me=null;
 let authState='loading',userEmail='',dataError='';
 
 /* ============ Versione e note di rilascio ============ */
-const VERSION='1.4';
+const VERSION='1.5';
 const RELEASES=[
+  {v:'1.5',date:'25 ottobre 2026',notes:[
+    'Icona del sito (scheda del browser e preferiti) rifatta: solo i due pinguini in un unico colore, senza sfondo e pi\u00f9 grandi, cos\u00ec si riconoscono anche in piccolo',
+    'Il colore dell\u2019icona si adatta al tema chiaro o scuro del browser'
+  ]},
   {v:'1.4',date:'25 ottobre 2026',notes:[
     'Pinguini dello sfondo un po\u2019 pi\u00f9 visibili, sia nel tema chiaro sia in quello scuro'
   ]},
