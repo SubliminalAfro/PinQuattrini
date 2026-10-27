@@ -115,7 +115,7 @@ input.in,select.in{height:48px;border-radius:12px;border:1px solid var(--field-l
 .dot{width:10px;height:10px;border-radius:3px;display:inline-block;flex-shrink:0}
 .empty{padding:28px 18px;text-align:center;color:var(--muted);font-size:15px;line-height:1.5}
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-nav.tabs .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+nav.tabs .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
 nav.tabs button{height:64px;border:0;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;font-weight:600}
 nav.tabs button.on{color:var(--accent);font-weight:700}
 .fab{position:fixed;right:max(20px,calc(50% - 240px));bottom:calc(76px + env(safe-area-inset-bottom,0px));width:60px;height:60px;border-radius:20px;border:0;background:var(--fab);color:var(--fab-ink);display:flex;align-items:center;justify-content:center;z-index:21;box-shadow:0 6px 18px rgba(0,0,0,.18)}
@@ -188,8 +188,12 @@ let me=null;
 let authState='loading',userEmail='',dataError='';
 
 /* ============ Versione e note di rilascio ============ */
-const VERSION='1.13';
+const VERSION='1.14';
 const RELEASES=[
+  {v:'1.14',date:'27 ottobre 2026',notes:[
+    'Nuova scheda Personale: raccoglie le spese segnate \u201cSolo mia\u201d (e quelle che l\u2019altro ha segnato \u201cSolo sua\u201d per te), mese per mese, con il totale',
+    'Home: nel \u201cSpeso questo mese\u201d i rimborsi ora contano. Il totale non cambia, ma la quota di ciascuno tiene conto di quanto ha dato o ricevuto indietro'
+  ]},
   {v:'1.13',date:'27 ottobre 2026',notes:[
     'Se l\u2019altro account elimina una spesa, una ricorrente o una categoria mentre la stai modificando, l\u2019app non si blocca pi\u00f9: ti avvisa e chiude la schermata',
     'Se il salvataggio non riesce (per esempio senza connessione), l\u2019app ci riprova al salvataggio successivo invece di perdere la modifica',
@@ -370,7 +374,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const MESI=['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 const pad=n=>String(n).padStart(2,'0');
-function todayISO(){const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function todayISO(d=new Date()){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 const curMonth=()=>todayISO().slice(0,7);
 function addMonth(m,n){let[y,mm]=m.split('-').map(Number);mm+=n;while(mm>12){mm-=12;y++}while(mm<1){mm+=12;y--}return y+'-'+pad(mm)}
 const monthName=m=>MESI[Number(m.slice(5))-1];
@@ -415,6 +419,7 @@ warn:'<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
 pencil:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
 trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
 check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
 lock:'<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'
 };
 function svg(path,size=20,sw=2,color='currentColor'){return`<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`}
@@ -429,6 +434,9 @@ function share(e,p){if(e.split==='half')return p==='p1'?Math.ceil(e.amount/2):Ma
 function net(p){let n=0;for(const e of S.expenses){if(e.payer===p)n+=e.amount;n-=share(e,p)}for(const s of S.settlements){if(s.from===p)n+=s.amount;if(s.to===p)n-=s.amount}return n}
 const inMonth=m=>S.expenses.filter(e=>e.date.slice(0,7)===m);
 const sum=a=>a.reduce((t,e)=>t+e.amount,0);
+const sDay=s=>s.date||todayISO(new Date(s.createdAt));
+/* Speso da p nel mese m: quanto ha pagato, piu i rimborsi dati e meno quelli ricevuti (il totale resta uguale) */
+function spentBy(p,m){let t=sum(inMonth(m).filter(e=>e.payer===p));for(const s of S.settlements)if(sDay(s).slice(0,7)===m){if(s.from===p)t+=s.amount;if(s.to===p)t-=s.amount}return t}
 function sortExp(a){return a.slice().sort((x,y)=>y.date.localeCompare(x.date)||y.createdAt-x.createdAt)}
 function splitLabel(e){if(e.split==='half')return'50/50';return e.split===me?'tutta tua':'tutta di '+pname(e.split)}
 function lastSettle(){return S.settlements.filter(s=>s.type!=='rimborso').sort((a,b)=>b.createdAt-a.createdAt)[0]}
@@ -477,14 +485,14 @@ function budgetAlerts(m){
 
 function vHome(){
   const m=curMonth(),ex=inMonth(m),tot=sum(ex);
-  const paid1=sum(ex.filter(e=>e.payer===me)),paid2=tot-paid1;
+  const paid1=spentBy(me,m),paid2=spentBy(other(me),m);
   const al=budgetAlerts(m);
   const last=sortExp(ex).slice(0,6);
   return`<div class="wrap">
   <div class="between"><div><p class="muted" style="font-size:14px">Ciao ${esc(pname(me))}</p><h1>${monthLabel(m)}</h1></div>${brand('top')}</div>
   <div class="card pad" style="display:flex;flex-direction:column;gap:12px">
     <div class="between" style="align-items:baseline"><span class="muted" style="font-size:14px;font-weight:600">Speso questo mese</span><span style="font-size:24px;font-weight:800">${fmt(tot)}</span></div>
-    <div class="split">${tot?`<span style="flex:${paid1};background:var(--${me})"></span><span style="flex:${paid2};background:var(--${other(me)})"></span>`:''}</div>
+    <div class="split">${tot?`<span style="flex:${Math.max(paid1,0)};background:var(--${me})"></span><span style="flex:${Math.max(paid2,0)};background:var(--${other(me)})"></span>`:''}</div>
     <div class="between small" style="font-weight:600"><span class="row" style="gap:6px"><span class="dot" style="background:var(--${me})"></span>Tu ${fmt(paid1)}</span><span class="row" style="gap:6px"><span class="dot" style="background:var(--${other(me)})"></span>${esc(pname(other(me)))} ${fmt(paid2)}</span></div>
   </div>
   ${al.map(a=>`<button class="alert" data-act="go" data-v="budget">${svg(UI.warn,18)}${esc(a.c.name)}: usato il ${a.pct}% del budget</button>`).join('')}
@@ -503,6 +511,16 @@ function vSpese(){
   ${used.length>1?`<div class="chips"><button class="chip sm ${!ui.filter?'on':''}" data-act="filter" data-id="">Tutte</button>${used.map(c=>`<button class="chip sm ${ui.filter===c.id?'on':''}" data-act="filter" data-id="${c.id}">${esc(c.name)}</button>`).join('')}</div>`:''}
   <div class="between small" style="padding:0 4px"><span class="muted">Totale</span><span style="font-weight:800;font-size:15px">${fmt(sum(ex))}</span></div>
   ${ex.length?groups:`<div class="card empty">Nessuna spesa in questo mese.</div>`}</div>`;
+}
+
+function vPersonale(){
+  const ex=sortExp(inMonth(ui.month).filter(e=>e.split===me)),tot=sum(ex);
+  let groups='',lastD='';
+  for(const e of ex){if(e.date!==lastD){if(lastD)groups+='</div>';groups+=`<p class="daygroup">${esc(dayLabel(e.date))}</p><div class="card list">`;lastD=e.date}groups+=expRow(e,false)}
+  if(lastD)groups+='</div>';
+  return`<div class="wrap"><div class="between"><h1>Personale</h1>${brand()}</div>${monthNav()}
+  <div class="card pad" style="display:flex;flex-direction:column;gap:4px"><div class="between" style="align-items:baseline"><span class="muted" style="font-size:14px;font-weight:600">Le tue spese del mese</span><span style="font-size:24px;font-weight:800">${fmt(tot)}</span></div><span class="muted small">Le spese segnate \u201cSolo mia\u201d, anche se le ha pagate ${esc(pname(other(me)))}</span></div>
+  ${ex.length?groups:`<div class="card empty">Nessuna spesa personale in questo mese.<br>Quando ne aggiungi una come \u201cSolo mia\u201d compare qui.</div>`}</div>`;
 }
 
 function vRiepilogo(){
@@ -766,12 +784,12 @@ function render(remote){
   else if(!S.setupDone)html=withFoot(vCategorie(true));
   else{
     if(!newsChecked&&!ui.sheet){newsChecked=true;const l=newsToShow();if(l.length){ui.sheet='news';ui.form={list:l}}}
-    const V={home:vHome,spese:vSpese,riepilogo:vRiepilogo,budget:vBudget,ricorrenti:vRicorrenti,saldo:vSaldo,categorie:()=>vCategorie(false),impostazioni:vImpostazioni};
+    const V={home:vHome,spese:vSpese,riepilogo:vRiepilogo,personale:vPersonale,budget:vBudget,ricorrenti:vRicorrenti,saldo:vSaldo,categorie:()=>vCategorie(false),impostazioni:vImpostazioni};
     html=withFoot((V[ui.view]||vHome)());
     tabs=true;
   }
   if(tabs){
-    const T=[['home','Home',UI.home],['riepilogo','Riepilogo',UI.chart],['ricorrenti','Ricorrenti',UI.rec],['saldo','Saldo',UI.scale],['impostazioni','Opzioni',UI.gear]];
+    const T=[['home','Home',UI.home],['riepilogo','Riepilogo',UI.chart],['personale','Personale',UI.user],['ricorrenti','Ricorrenti',UI.rec],['saldo','Saldo',UI.scale],['impostazioni','Opzioni',UI.gear]];
     const act={spese:'home',budget:'impostazioni',categorie:'impostazioni'}[ui.view]||ui.view;
     html+=`<button class="fab" data-act="newExp" aria-label="Aggiungi spesa">${svg(UI.plus,26,2.5)}</button>`;
     html+=`<nav class="tabs" aria-label="Sezioni"><div class="in">${T.map(([k,l,i])=>`<button class="${act===k?'on':''}" data-act="go" data-v="${k}" ${act===k?'aria-current="page"':''}>${svg(i,22)}${l}</button>`).join('')}</div></nav>`;
