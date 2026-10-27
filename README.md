@@ -4,6 +4,12 @@ Web app (PWA) per tenere traccia del budget di coppia: spese, categorie con budg
 
 L'app è installabile sulla schermata Home e, grazie al service worker, si apre anche con connessione assente o instabile (i dati salvati restano consultabili; la sincronizzazione riprende quando torna la rete).
 
+## Funzioni principali
+
+- **Home**: totale speso nel mese e quota di ciascuno. La quota è *pagato + rimborsi dati − rimborsi ricevuti* nel mese (data del rimborso), quindi il totale non cambia ma ognuno vede quanto ha davvero sostenuto. Esempio: X paga 500 €, Y paga 100 €, Y rimborsa 250 € a X → totale 600 €, X 250 €, Y 350 €. Anche i pareggi contano come rimborsi.
+- **Personale**: scheda con le spese segnate *Solo mia* dall'account che la guarda (comprese quelle pagate dall'altro), mese per mese. È un filtro sui dati condivisi: l'altro account non la vede nella sua app, ma i dati restano nello stesso database Firestore. Per una riservatezza reale servirebbero regole/collezioni separate per utente.
+- **Saldo**: chi deve cosa, rimborsi parziali e pareggio.
+
 ## Come si pubblica (GitHub Pages)
 
 Il sito è completamente statico, non serve nessuna build.
