@@ -188,8 +188,14 @@ let me=null;
 let authState='loading',userEmail='',dataError='';
 
 /* ============ Versione e note di rilascio ============ */
-const VERSION='1.12';
+const VERSION='1.13';
 const RELEASES=[
+  {v:'1.13',date:'27 ottobre 2026',notes:[
+    'Se l\u2019altro account elimina una spesa, una ricorrente o una categoria mentre la stai modificando, l\u2019app non si blocca pi\u00f9: ti avvisa e chiude la schermata',
+    'Se il salvataggio non riesce (per esempio senza connessione), l\u2019app ci riprova al salvataggio successivo invece di perdere la modifica',
+    'Le spese ricorrenti si aggiungono anche se lasci l\u2019app aperta e passa a un nuovo giorno o mese',
+    'Ripristino da copia: i dati incompleti o con importi non validi vengono sistemati o scartati, cos\u00ec non rovinano l\u2019app'
+  ]},
   {v:'1.12',date:'25 ottobre 2026',notes:[
     'Opzioni: \u201cAccesso come\u201d \u00e8 il primo riquadro',
     'Opzioni: c\u2019\u00e8 un solo campo nome e modifica soltanto il tuo; l\u2019altro lo cambia ognuno dal proprio account',
@@ -302,7 +308,7 @@ const COLLS=['categories','expenses','recurring','settlements'];
 const ROOT=['spaces','main'];
 let synced={categories:{},expenses:{},recurring:{},settlements:{}},syncedMeta=null;
 let loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false};
-let unsubs=[],recurDone=false;
+let unsubs=[],recurDone=false,recurDay='';
 function stable(v){if(Array.isArray(v))return'['+v.map(stable).join(',')+']';if(v&&typeof v==='object')return'{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}';return JSON.stringify(v===undefined?null:v)}
 const clean=o=>JSON.parse(JSON.stringify(o));
 const metaOf=()=>({people:S.people,settings:S.settings,setupDone:!!S.setupDone});
@@ -312,22 +318,29 @@ function save(){
   const ops=[];
   for(const c of COLLS){
     const cur={};for(const it of S[c])cur[it.id]=it;
-    for(const id in cur){const j=stable(cur[id]);if(synced[c][id]!==j){ops.push(['set',doc(db,...ROOT,c,id),clean(cur[id])]);synced[c][id]=j}}
-    for(const id in synced[c])if(!cur[id]){ops.push(['del',doc(db,...ROOT,c,id)]);delete synced[c][id]}
+    for(const id in cur){const j=stable(cur[id]);if(synced[c][id]!==j){ops.push(['set',doc(db,...ROOT,c,id),clean(cur[id]),c,id]);synced[c][id]=j}}
+    for(const id in synced[c])if(!cur[id]){ops.push(['del',doc(db,...ROOT,c,id),0,c,id]);delete synced[c][id]}
   }
-  const mj=stable(metaOf());if(mj!==syncedMeta){ops.push(['set',doc(db,...ROOT),clean(metaOf())]);syncedMeta=mj}
+  const mj=stable(metaOf());if(mj!==syncedMeta){ops.push(['set',doc(db,...ROOT),clean(metaOf()),'']);syncedMeta=mj}
   for(let i=0;i<ops.length;i+=400){
-    const b=writeBatch(db);
-    for(const[t,r,v]of ops.slice(i,i+400))t==='set'?b.set(r,v):b.delete(r);
-    b.commit().catch(e=>{console.error(e);toast('Salvataggio non riuscito ('+(e.code||'errore')+'). Riprova.')});
+    const b=writeBatch(db),part=ops.slice(i,i+400);
+    for(const[t,r,v]of part)t==='set'?b.set(r,v):b.delete(r);
+    b.commit().catch(e=>{console.error(e);
+      /* il commit e fallito: dimentica queste chiavi cosi il prossimo save() le rimanda */
+      for(const[t,,,c,id]of part){if(c==='')syncedMeta=null;else if(t==='set')delete synced[c][id];else synced[c][id]='?'}
+      toast('Salvataggio non riuscito ('+(e.code||'errore')+'). Riprova.')});
   }
 }
-function stopListeners(){unsubs.forEach(u=>u());unsubs=[];synced={categories:{},expenses:{},recurring:{},settlements:{}};syncedMeta=null;loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false};recurDone=false}
+function stopListeners(){unsubs.forEach(u=>u());unsubs=[];synced={categories:{},expenses:{},recurring:{},settlements:{}};syncedMeta=null;loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false};recurDone=false;recurDay=''}
 function onData(){
   if(!allLoaded()){render(true);return}
-  if(!recurDone){recurDone=true;runRecurring()}
+  if(!recurDone){recurDone=true;recurDay=todayISO();runRecurring()}
   render(true);
 }
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible'||authState!=='in'||!allLoaded()||!recurDone||recurDay===todayISO())return;
+  recurDay=todayISO();if(runRecurring())render(true);
+});
 function listenErr(e){console.error(e);dataError=e.code==='permission-denied'?'Il database non ti fa entrare. Controlla le regole di Firestore.':'Non riesco a leggere i dati ('+(e.code||'errore')+').';render()}
 function startListeners(){
   stopListeners();
@@ -802,6 +815,7 @@ function closeCat(newId){
   else{ui.sheet=null;ui.form=null}
   ui.err='';ui.confirm='';render();
 }
+function gone(what,cat){if(cat)closeCat(null);else{ui.sheet=null;ui.form=null;ui.err='';ui.confirm='';render()}toast(what)}
 function needConfirm(key){if(ui.confirm===key){ui.confirm='';return false}ui.confirm=key;return true}
 function validMoney(f){const a=parseMoney(f.amount);if(a<=0){ui.err='Scrivi un importo maggiore di zero.';return 0}if(a>100000000){ui.err='Importo troppo alto.';return 0}return a}
 
@@ -823,7 +837,7 @@ const ACT={
     if(a&&!/^\d{4}-\d{2}-\d{2}$/.test(f.date||''))ui.err='Scegli una data.';
     if(ui.err){renderSheet();return}
     const data={amount:a,desc:(f.desc||'').trim(),date:f.date,cat:f.cat,sub:f.sub||'',payer:f.payer,split:f.split};
-    if(f.id){Object.assign(S.expenses.find(x=>x.id===f.id),data)}
+    if(f.id){const x=S.expenses.find(x=>x.id===f.id);if(!x){gone('Questa spesa \u00e8 stata eliminata dall\u2019altro account');return}Object.assign(x,data)}
     else{
       const e={id:uid(),...data,createdAt:Date.now()};
       if(f.repeat){const r={id:uid(),amount:a,desc:data.desc,cat:data.cat,sub:data.sub,payer:data.payer,split:data.split,day:Number(f.date.slice(8)),active:true,startMonth:f.date.slice(0,7),done:[f.date.slice(0,7)]};S.recurring.push(r);e.recId=r.id}
@@ -840,7 +854,7 @@ const ACT={
     if(a&&!f.cat)ui.err='Scegli una categoria.';
     if(ui.err){renderSheet();return}
     const data={amount:a,desc:(f.desc||'').trim(),day,cat:f.cat,sub:f.sub||'',payer:f.payer,split:f.split};
-    if(f.id)Object.assign(S.recurring.find(x=>x.id===f.id),data);
+    if(f.id){const x=S.recurring.find(x=>x.id===f.id);if(!x){gone('Questa ricorrente \u00e8 stata eliminata dall\u2019altro account');return}Object.assign(x,data)}
     else S.recurring.push({id:uid(),...data,active:true,startMonth:curMonth(),done:[]});
     const n=runRecurring();save();ui.sheet=null;ui.form=null;render();
     toast(n?'Salvata e aggiunta a questo mese':'Spesa ricorrente salvata');
@@ -860,12 +874,13 @@ const ACT={
     if(ui.err){renderSheet();return}
     if((f.newSub||'').trim()){const ns=f.newSub.trim();if(!f.subs.some(s=>s.name.toLowerCase()===ns.toLowerCase()))f.subs.push({id:uid(),name:ns})}
     let id=f.id;
-    if(id)Object.assign(S.categories.find(c=>c.id===id),{name:n,icon:f.icon,color:f.color,subs:f.subs});
+    if(id){const c=S.categories.find(c=>c.id===id);if(!c){gone('Questa categoria \u00e8 stata eliminata dall\u2019altro account',1);return}Object.assign(c,{name:n,icon:f.icon,color:f.color,subs:f.subs})}
     else{id=uid();S.categories.push({id,name:n,icon:f.icon,color:f.color,subs:f.subs,budget:0})}
     save();toast('Categoria salvata');closeCat(f.id?null:id);
   },
   delCat(){
-    const f=ui.form;const used=S.expenses.filter(e=>e.cat===f.id).length;
+    const f=ui.form;if(!S.categories.some(c=>c.id===f.id)){gone('Questa categoria \u00e8 gi\u00e0 stata eliminata dall\u2019altro account',1);return}
+    const used=S.expenses.filter(e=>e.cat===f.id).length;
     if(ui.confirm!=='delCat'){ui.confirm='delCat';ui.err=used?`È usata da ${used} ${used===1?'spesa':'spese'}: resteranno come “Senza categoria”.`:'';renderSheet();return}
     S.categories=S.categories.filter(c=>c.id!==f.id);save();toast('Categoria eliminata');closeCat(null);
   },
@@ -898,7 +913,12 @@ const ACT={
     else{try{ok=document.execCommand('copy')}catch(e){}toast(ok?'Copiato':'Testo selezionato: copialo a mano')}},
   doRestore(){
     try{const d=JSON.parse(ui.form.text||'');if(!d||!Array.isArray(d.expenses)||!Array.isArray(d.categories))throw 0;
-      for(const c of COLLS)S[c]=Array.isArray(d[c])?d[c]:[];
+      const L=c=>(Array.isArray(d[c])?d[c]:[]).filter(x=>x&&typeof x==='object').map(x=>({...x,id:x.id?String(x.id):uid()}));
+      const amt=x=>{x.amount=Math.round(Number(x.amount));return x.amount>0&&x.amount<=100000000};
+      S.categories=L('categories').map(c=>({...c,name:String(c.name||'Categoria'),icon:c.icon||'Carrello',color:c.color||'verde',subs:Array.isArray(c.subs)?c.subs:[],budget:Number(c.budget)>0?Number(c.budget):0}));
+      S.expenses=L('expenses').filter(amt).map(e=>({...e,sub:e.sub||'',createdAt:Number(e.createdAt)||Date.now()}));
+      S.recurring=L('recurring').filter(amt).map(r=>({...r,sub:r.sub||'',done:Array.isArray(r.done)?r.done:[],active:r.active!==false,startMonth:/^\d{4}-\d{2}$/.test(r.startMonth||'')?r.startMonth:curMonth(),day:Math.min(31,Math.max(1,Math.round(Number(r.day))||1))}));
+      S.settlements=L('settlements').filter(amt).map(x=>({...x,createdAt:Number(x.createdAt)||Date.now()}));
       if(d.settings)S.settings=Object.assign({alertOn:true,alertAt:80},d.settings);
       S.setupDone=true;runRecurring();save();ui.sheet=null;ui.form=null;ui.view='home';render();toast('Dati importati')}
     catch(e){ui.err='Questo testo non è una copia di PinQuattrini valida.';renderSheet()}
