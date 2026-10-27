@@ -182,14 +182,19 @@ let db;
 try{db=initializeFirestore(fbApp,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})})}
 catch(e){db=getFirestore(fbApp)}
 
-function blank(){return{v:1,people:null,categories:[],expenses:[],recurring:[],settlements:[],settings:{alertOn:true,alertAt:80}}}
+function blank(){return{v:1,people:null,categories:[],expenses:[],recurring:[],settlements:[],personal:[],settings:{alertOn:true,alertAt:80}}}
 let S=blank();
 let me=null;
 let authState='loading',userEmail='',dataError='';
 
 /* ============ Versione e note di rilascio ============ */
-const VERSION='1.14';
+const VERSION='1.15';
 const RELEASES=[
+  {v:'1.15',date:'27 ottobre 2026',notes:[
+    'Quando aggiungi una spesa scegli prima se \u00e8 di Casa o Personale',
+    'Le spese Personali le vedi solo tu, nella scheda Personale: l\u2019altro account non le riceve nemmeno. Nella scheda trovi anche le spese di Casa segnate \u201cSolo mia\u201d',
+    'Le spese di Casa restano visibili a entrambi e confluiscono in Home, Riepilogo e budget'
+  ]},
   {v:'1.14',date:'27 ottobre 2026',notes:[
     'Nuova scheda Personale: raccoglie le spese segnate \u201cSolo mia\u201d (e quelle che l\u2019altro ha segnato \u201cSolo sua\u201d per te), mese per mese, con il totale',
     'Home: nel \u201cSpeso questo mese\u201d i rimborsi ora contano. Il totale non cambia, ma la quota di ciascuno tiene conto di quanto ha dato o ricevuto indietro'
@@ -308,10 +313,13 @@ let newsChecked=false;
 /* ============ Sincronizzazione ============
    Dopo ogni modifica, save() confronta i dati in memoria con l'ultima
    versione ricevuta dal database e scrive solo cio che e cambiato. */
-const COLLS=['categories','expenses','recurring','settlements'];
+const COLLS=['categories','expenses','recurring','settlements','personal'];
+/* le spese personali stanno in una raccolta separata per ogni account (personal_p1, personal_p2): l'altro non la legge */
+const pathOf=c=>c==='personal'?'personal_'+me:c;
+let personalErr=false;
 const ROOT=['spaces','main'];
-let synced={categories:{},expenses:{},recurring:{},settlements:{}},syncedMeta=null;
-let loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false};
+let synced={categories:{},expenses:{},recurring:{},settlements:{},personal:{}},syncedMeta=null;
+let loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false,personal:false};
 let unsubs=[],recurDone=false,recurDay='';
 function stable(v){if(Array.isArray(v))return'['+v.map(stable).join(',')+']';if(v&&typeof v==='object')return'{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}';return JSON.stringify(v===undefined?null:v)}
 const clean=o=>JSON.parse(JSON.stringify(o));
@@ -322,12 +330,14 @@ function save(){
   const ops=[];
   for(const c of COLLS){
     const cur={};for(const it of S[c])cur[it.id]=it;
-    for(const id in cur){const j=stable(cur[id]);if(synced[c][id]!==j){ops.push(['set',doc(db,...ROOT,c,id),clean(cur[id]),c,id]);synced[c][id]=j}}
-    for(const id in synced[c])if(!cur[id]){ops.push(['del',doc(db,...ROOT,c,id),0,c,id]);delete synced[c][id]}
+    for(const id in cur){const j=stable(cur[id]);if(synced[c][id]!==j){ops.push(['set',doc(db,...ROOT,pathOf(c),id),clean(cur[id]),c,id]);synced[c][id]=j}}
+    for(const id in synced[c])if(!cur[id]){ops.push(['del',doc(db,...ROOT,pathOf(c),id),0,c,id]);delete synced[c][id]}
   }
   const mj=stable(metaOf());if(mj!==syncedMeta){ops.push(['set',doc(db,...ROOT),clean(metaOf()),'']);syncedMeta=mj}
-  for(let i=0;i<ops.length;i+=400){
-    const b=writeBatch(db),part=ops.slice(i,i+400);
+  /* le spese personali vanno in un gruppo a parte, cosi un errore li non blocca il resto */
+  const groups=[ops.filter(o=>o[3]!=='personal'),ops.filter(o=>o[3]==='personal')];
+  for(const g of groups)for(let i=0;i<g.length;i+=400){
+    const b=writeBatch(db),part=g.slice(i,i+400);
     for(const[t,r,v]of part)t==='set'?b.set(r,v):b.delete(r);
     b.commit().catch(e=>{console.error(e);
       /* il commit e fallito: dimentica queste chiavi cosi il prossimo save() le rimanda */
@@ -335,7 +345,7 @@ function save(){
       toast('Salvataggio non riuscito ('+(e.code||'errore')+'). Riprova.')});
   }
 }
-function stopListeners(){unsubs.forEach(u=>u());unsubs=[];synced={categories:{},expenses:{},recurring:{},settlements:{}};syncedMeta=null;loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false};recurDone=false;recurDay=''}
+function stopListeners(){unsubs.forEach(u=>u());unsubs=[];synced={categories:{},expenses:{},recurring:{},settlements:{},personal:{}};syncedMeta=null;personalErr=false;loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false,personal:false};recurDone=false;recurDay=''}
 function onData(){
   if(!allLoaded()){render(true);return}
   if(!recurDone){recurDone=true;recurDay=todayISO();runRecurring()}
@@ -353,11 +363,12 @@ function startListeners(){
     else if(!snap.metadata.fromCache){S.people=JSON.parse(JSON.stringify(DEFAULT_PEOPLE));S.settings={alertOn:true,alertAt:80};S.setupDone=false;loaded.meta=true;save();onData()}
   },listenErr));
   for(const c of COLLS){
-    unsubs.push(onSnapshot(collection(db,...ROOT,c),snap=>{
+    unsubs.push(onSnapshot(collection(db,...ROOT,pathOf(c)),snap=>{
       S[c]=snap.docs.map(d=>({...d.data(),id:d.id}));
       synced[c]={};for(const it of S[c])synced[c][it.id]=stable(it);
+      if(c==='personal')personalErr=false;
       loaded[c]=true;onData();
-    },listenErr));
+    },c==='personal'?e=>{console.error(e);personalErr=true;loaded.personal=true;onData()}:listenErr));
   }
 }
 onAuthStateChanged(auth,u=>{
@@ -475,8 +486,8 @@ function monthNav(){return`<div class="between"><button class="iconbtn" data-act
 function expRow(e,showDate){
   const c=catOf(e.cat),s=subOf(c,e.sub);
   const title=e.desc||(s?s.name:c.name);
-  const meta=[c.name+(s?' › '+s.name:''),showDate?e.date.split('-').reverse().join('/'):null,e.recId?'ricorrente':null,'pagato da '+who(e.payer),splitLabel(e)].filter(Boolean).join(' · ');
-  return`<button class="item" data-act="editExp" data-id="${e.id}">${tile(c)}<span class="grow"><span class="t">${esc(title)}</span><span class="s">${esc(meta)}</span></span><span class="amt">${fmt(e.amount)}</span></button>`;
+  const meta=(e._p?[c.name+(s?' › '+s.name:''),showDate?e.date.split('-').reverse().join('/'):null,'personale']:[c.name+(s?' › '+s.name:''),showDate?e.date.split('-').reverse().join('/'):null,e.recId?'ricorrente':null,'pagato da '+who(e.payer),splitLabel(e)]).filter(Boolean).join(' · ');
+  return`<button class="item" data-act="editExp" data-id="${e.id}"${e._p?' data-p="1"':''}>${tile(c)}<span class="grow"><span class="t">${esc(title)}</span><span class="s">${esc(meta)}</span></span><span class="amt">${fmt(e.amount)}</span></button>`;
 }
 function budgetAlerts(m){
   if(!S.settings.alertOn)return[];
@@ -514,13 +525,15 @@ function vSpese(){
 }
 
 function vPersonale(){
-  const ex=sortExp(inMonth(ui.month).filter(e=>e.split===me)),tot=sum(ex);
+  const mine=[...S.personal.map(e=>({...e,_p:1})),...S.expenses.filter(e=>e.split===me)];
+  const ex=sortExp(mine.filter(e=>e.date.slice(0,7)===ui.month)),tot=sum(ex);
   let groups='',lastD='';
   for(const e of ex){if(e.date!==lastD){if(lastD)groups+='</div>';groups+=`<p class="daygroup">${esc(dayLabel(e.date))}</p><div class="card list">`;lastD=e.date}groups+=expRow(e,false)}
   if(lastD)groups+='</div>';
   return`<div class="wrap"><div class="between"><h1>Personale</h1>${brand()}</div>${monthNav()}
-  <div class="card pad" style="display:flex;flex-direction:column;gap:4px"><div class="between" style="align-items:baseline"><span class="muted" style="font-size:14px;font-weight:600">Le tue spese del mese</span><span style="font-size:24px;font-weight:800">${fmt(tot)}</span></div><span class="muted small">Le spese segnate \u201cSolo mia\u201d, anche se le ha pagate ${esc(pname(other(me)))}</span></div>
-  ${ex.length?groups:`<div class="card empty">Nessuna spesa personale in questo mese.<br>Quando ne aggiungi una come \u201cSolo mia\u201d compare qui.</div>`}</div>`;
+  ${personalErr?`<div class="alert" role="alert">${svg(UI.warn,18)}Le spese personali non si possono leggere o salvare: servono le regole di Firestore aggiornate (vedi README).</div>`:''}
+  <div class="card pad" style="display:flex;flex-direction:column;gap:4px"><div class="between" style="align-items:baseline"><span class="muted" style="font-size:14px;font-weight:600">Le tue spese del mese</span><span style="font-size:24px;font-weight:800">${fmt(tot)}</span></div><span class="muted small">Solo tu le vedi. Ci sono anche le spese di casa segnate \u201cSolo mia\u201d</span></div>
+  ${ex.length?groups:`<div class="card empty">Nessuna spesa personale in questo mese.<br>Tocca + e scegli Personale per aggiungerne una.</div>`}</div>`;
 }
 
 function vRiepilogo(){
@@ -686,11 +699,12 @@ function sheetExp(){
   const f=ui.form,editing=!!f.id;
   return`<div class="sheet" role="dialog" aria-modal="true" aria-label="${editing?'Modifica spesa':'Nuova spesa'}"><div class="wrap">
   <div class="between"><button class="iconbtn" data-act="close" aria-label="Chiudi">${svg(UI.x,18,2.2)}</button><span style="font-size:17px;font-weight:800">${editing?'Modifica spesa':'Nuova spesa'}</span><span style="width:44px"></span></div>
+  ${editing?`<p class="muted small" style="text-align:center">${f.kind==='personal'?'Spesa personale: la vedi solo tu':'Spesa di casa: la vedete entrambi'}</p>`:`<div class="seg" style="grid-template-columns:repeat(2,minmax(0,1fr))">${[['casa','Casa'],['personal','Personale']].map(([k,l])=>`<button class="${f.kind===k?'on':''}" data-act="fKind" data-k="${k}" aria-pressed="${f.kind===k}">${l}</button>`).join('')}</div>`}
   <div style="text-align:center"><label class="lbl muted" for="fa">Importo in euro</label><input id="fa" class="amount" inputmode="decimal" placeholder="0,00" value="${esc(f.amount)}" data-f="amount" autocomplete="off"></div>
   <div class="grid2"><div class="field"><label class="lbl" for="fd">Descrizione</label><input id="fd" class="in" maxlength="40" placeholder="Facoltativa" value="${esc(f.desc)}" data-f="desc"></div>
   <div class="field"><label class="lbl" for="fdt">Data</label><input id="fdt" class="in" type="date" value="${esc(f.date)}" data-f="date"></div></div>
-  ${catPicker(f)}${payerSplit(f)}
-  ${!editing?`<div class="switchrow"><label for="fr" style="font-size:15px;font-weight:600">Si ripete ogni mese</label><input id="fr" type="checkbox" ${f.repeat?'checked':''} data-f="repeat"></div>`:''}
+  ${catPicker(f)}${f.kind==='personal'?'':payerSplit(f)}
+  ${!editing&&f.kind!=='personal'?`<div class="switchrow"><label for="fr" style="font-size:15px;font-weight:600">Si ripete ogni mese</label><input id="fr" type="checkbox" ${f.repeat?'checked':''} data-f="repeat"></div>`:''}
   ${f.recId?`<p class="muted small">Creata dalle spese ricorrenti. Le modifiche valgono solo per questa volta.</p>`:''}
   ${ui.err?`<p class="err">${esc(ui.err)}</p>`:''}
   <button class="btn" style="margin-top:auto" data-act="saveExp">Salva spesa</button>
@@ -809,10 +823,10 @@ function renderSheet(keepFocus){
 }
 
 /* ============ Azioni ============ */
-function openExp(e){
+function openExp(e,personal){
   const first=S.categories[0];
-  ui.form=e?{id:e.id,amount:moneyInput(e.amount),desc:e.desc,date:e.date,cat:e.cat,sub:e.sub||'',payer:e.payer,split:e.split,recId:e.recId}
-    :{amount:'',desc:'',date:todayISO(),cat:first?first.id:'',sub:'',payer:me,split:'half',repeat:false};
+  ui.form=e?{id:e.id,kind:personal?'personal':'casa',amount:moneyInput(e.amount),desc:e.desc,date:e.date,cat:e.cat,sub:e.sub||'',payer:e.payer||me,split:e.split||'half',recId:e.recId}
+    :{kind:ui.view==='personale'?'personal':'casa',amount:'',desc:'',date:todayISO(),cat:first?first.id:'',sub:'',payer:me,split:'half',repeat:false};
   ui.sheet='exp';ui.err='';ui.confirm='';renderSheet();
   if(!e)setTimeout(()=>{const a=document.getElementById('fa');if(a)a.focus()},60);
 }
@@ -843,7 +857,8 @@ const ACT={
   filter(d){ui.filter=d.id;render()},
   openCat(d){ui.open=ui.open===d.id?'':d.id;render()},
   newExp(){if(!S.categories.length){toast('Crea prima almeno una categoria.');return}openExp(null)},
-  editExp(d){const e=S.expenses.find(x=>x.id===d.id);if(e)openExp(e)},
+  editExp(d){const p=d.p==='1';const e=(p?S.personal:S.expenses).find(x=>x.id===d.id);if(e)openExp(e,p)},
+  fKind(d){ui.form.kind=d.k;renderSheet()},
   fCat(d){ui.form.cat=d.id;ui.form.sub='';renderSheet()},
   fSub(d){ui.form.sub=ui.form.sub===d.id?'':d.id;renderSheet()},
   fPayer(d){ui.form.payer=d.p;renderSheet()},
@@ -854,8 +869,14 @@ const ACT={
     if(a&&!f.cat)ui.err='Scegli una categoria.';
     if(a&&!/^\d{4}-\d{2}-\d{2}$/.test(f.date||''))ui.err='Scegli una data.';
     if(ui.err){renderSheet();return}
-    const data={amount:a,desc:(f.desc||'').trim(),date:f.date,cat:f.cat,sub:f.sub||'',payer:f.payer,split:f.split};
-    if(f.id){const x=S.expenses.find(x=>x.id===f.id);if(!x){gone('Questa spesa \u00e8 stata eliminata dall\u2019altro account');return}Object.assign(x,data)}
+    const pers=f.kind==='personal';
+    const data={amount:a,desc:(f.desc||'').trim(),date:f.date,cat:f.cat,sub:f.sub||''};
+    if(!pers){data.payer=f.payer;data.split=f.split}
+    if(pers){
+      if(f.id){const x=S.personal.find(x=>x.id===f.id);if(!x){gone('Questa spesa non c\u2019\u00e8 pi\u00f9');return}Object.assign(x,data)}
+      else S.personal.push({id:uid(),...data,createdAt:Date.now()});
+    }
+    else if(f.id){const x=S.expenses.find(x=>x.id===f.id);if(!x){gone('Questa spesa \u00e8 stata eliminata dall\u2019altro account');return}Object.assign(x,data)}
     else{
       const e={id:uid(),...data,createdAt:Date.now()};
       if(f.repeat){const r={id:uid(),amount:a,desc:data.desc,cat:data.cat,sub:data.sub,payer:data.payer,split:data.split,day:Number(f.date.slice(8)),active:true,startMonth:f.date.slice(0,7),done:[f.date.slice(0,7)]};S.recurring.push(r);e.recId=r.id}
@@ -863,7 +884,7 @@ const ACT={
     }
     save();ui.sheet=null;ui.form=null;render();toast(f.id?'Spesa aggiornata':'Spesa salvata');
   },
-  delExp(){if(needConfirm('delExp')){renderSheet();return}S.expenses=S.expenses.filter(x=>x.id!==ui.form.id);save();ui.sheet=null;ui.form=null;render();toast('Spesa eliminata')},
+  delExp(){if(needConfirm('delExp')){renderSheet();return}if(ui.form.kind==='personal')S.personal=S.personal.filter(x=>x.id!==ui.form.id);else S.expenses=S.expenses.filter(x=>x.id!==ui.form.id);save();ui.sheet=null;ui.form=null;render();toast('Spesa eliminata')},
   newRec(){if(!S.categories.length){toast('Crea prima almeno una categoria.');return}openRec(null)},
   editRec(d){const r=S.recurring.find(x=>x.id===d.id);if(r)openRec(r)},
   saveRec(){
@@ -898,7 +919,7 @@ const ACT={
   },
   delCat(){
     const f=ui.form;if(!S.categories.some(c=>c.id===f.id)){gone('Questa categoria \u00e8 gi\u00e0 stata eliminata dall\u2019altro account',1);return}
-    const used=S.expenses.filter(e=>e.cat===f.id).length;
+    const used=S.expenses.filter(e=>e.cat===f.id).length+S.personal.filter(e=>e.cat===f.id).length;
     if(ui.confirm!=='delCat'){ui.confirm='delCat';ui.err=used?`È usata da ${used} ${used===1?'spesa':'spese'}: resteranno come “Senza categoria”.`:'';renderSheet();return}
     S.categories=S.categories.filter(c=>c.id!==f.id);save();toast('Categoria eliminata');closeCat(null);
   },
@@ -936,6 +957,7 @@ const ACT={
       S.categories=L('categories').map(c=>({...c,name:String(c.name||'Categoria'),icon:c.icon||'Carrello',color:c.color||'verde',subs:Array.isArray(c.subs)?c.subs:[],budget:Number(c.budget)>0?Number(c.budget):0}));
       S.expenses=L('expenses').filter(amt).map(e=>({...e,sub:e.sub||'',createdAt:Number(e.createdAt)||Date.now()}));
       S.recurring=L('recurring').filter(amt).map(r=>({...r,sub:r.sub||'',done:Array.isArray(r.done)?r.done:[],active:r.active!==false,startMonth:/^\d{4}-\d{2}$/.test(r.startMonth||'')?r.startMonth:curMonth(),day:Math.min(31,Math.max(1,Math.round(Number(r.day))||1))}));
+      if(Array.isArray(d.personal))S.personal=L('personal').filter(amt).map(e=>({...e,sub:e.sub||'',createdAt:Number(e.createdAt)||Date.now()}));
       S.settlements=L('settlements').filter(amt).map(x=>({...x,createdAt:Number(x.createdAt)||Date.now()}));
       if(d.settings)S.settings=Object.assign({alertOn:true,alertAt:80},d.settings);
       S.setupDone=true;runRecurring();save();ui.sheet=null;ui.form=null;ui.view='home';render();toast('Dati importati')}
