@@ -986,6 +986,9 @@ render();
 </script>
 <script>
 if('serviceWorker' in navigator){
+  /* se un nuovo service worker prende il controllo, ricarica una volta per mostrare la versione nuova */
+  var hadCtl=!!navigator.serviceWorker.controller,reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',function(){if(!hadCtl||reloaded)return;reloaded=true;location.reload()});
   window.addEventListener('load',function(){
     try{navigator.serviceWorker.register('sw.js').catch(function(e){console.warn('SW non registrato',e)})}catch(e){console.warn('SW non registrato',e)}
   });
