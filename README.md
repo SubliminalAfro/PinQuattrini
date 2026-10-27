@@ -64,4 +64,4 @@ match /spaces/main/personal_p2/{id} {
 }
 ```
 
-Se le regole attuali coprono già tutto `spaces/main/**` per entrambi, la riservatezza non c'è finché non si restringono: le nuove `match` più specifiche non bastano, perché le regole di Firestore si sommano. Va tolto l'accesso generico a queste due raccolte (per esempio elencando le raccolte condivise una per una). Finché le regole non permettono l'accesso, la scheda Personale mostra un avviso.
+Se le regole attuali coprono già tutto `spaces/main/**` per entrambi, la riservatezza non c'è finché non si restringono: le nuove `match` più specifiche non bastano, perché le regole di Firestore si sommano. Va tolto l'accesso generico a queste due raccolte (per esempio elencando le raccolte condivise una per una).

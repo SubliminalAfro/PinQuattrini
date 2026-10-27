@@ -316,7 +316,7 @@ let newsChecked=false;
 const COLLS=['categories','expenses','recurring','settlements','personal'];
 /* le spese personali stanno in una raccolta separata per ogni account (personal_p1, personal_p2): l'altro non la legge */
 const pathOf=c=>c==='personal'?'personal_'+me:c;
-let personalErr=false;
+
 const ROOT=['spaces','main'];
 let synced={categories:{},expenses:{},recurring:{},settlements:{},personal:{}},syncedMeta=null;
 let loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false,personal:false};
@@ -345,7 +345,7 @@ function save(){
       toast('Salvataggio non riuscito ('+(e.code||'errore')+'). Riprova.')});
   }
 }
-function stopListeners(){unsubs.forEach(u=>u());unsubs=[];synced={categories:{},expenses:{},recurring:{},settlements:{},personal:{}};syncedMeta=null;personalErr=false;loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false,personal:false};recurDone=false;recurDay=''}
+function stopListeners(){unsubs.forEach(u=>u());unsubs=[];synced={categories:{},expenses:{},recurring:{},settlements:{},personal:{}};syncedMeta=null;loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false,personal:false};recurDone=false;recurDay=''}
 function onData(){
   if(!allLoaded()){render(true);return}
   if(!recurDone){recurDone=true;recurDay=todayISO();runRecurring()}
@@ -366,9 +366,8 @@ function startListeners(){
     unsubs.push(onSnapshot(collection(db,...ROOT,pathOf(c)),snap=>{
       S[c]=snap.docs.map(d=>({...d.data(),id:d.id}));
       synced[c]={};for(const it of S[c])synced[c][it.id]=stable(it);
-      if(c==='personal')personalErr=false;
       loaded[c]=true;onData();
-    },c==='personal'?e=>{console.error(e);personalErr=true;loaded.personal=true;onData()}:listenErr));
+    },c==='personal'?e=>{console.error(e);loaded.personal=true;onData()}:listenErr));
   }
 }
 onAuthStateChanged(auth,u=>{
@@ -531,7 +530,6 @@ function vPersonale(){
   for(const e of ex){if(e.date!==lastD){if(lastD)groups+='</div>';groups+=`<p class="daygroup">${esc(dayLabel(e.date))}</p><div class="card list">`;lastD=e.date}groups+=expRow(e,false)}
   if(lastD)groups+='</div>';
   return`<div class="wrap"><div class="between"><h1>Personale</h1>${brand()}</div>${monthNav()}
-  ${personalErr?`<div class="alert" role="alert">${svg(UI.warn,18)}Le spese personali non si possono leggere o salvare: servono le regole di Firestore aggiornate (vedi README).</div>`:''}
   <div class="card pad" style="display:flex;flex-direction:column;gap:4px"><div class="between" style="align-items:baseline"><span class="muted" style="font-size:14px;font-weight:600">Le tue spese del mese</span><span style="font-size:24px;font-weight:800">${fmt(tot)}</span></div><span class="muted small">Solo tu le vedi. Ci sono anche le spese di casa segnate \u201cSolo mia\u201d</span></div>
   ${ex.length?groups:`<div class="card empty">Nessuna spesa personale in questo mese.<br>Tocca + e scegli Personale per aggiungerne una.</div>`}</div>`;
 }
