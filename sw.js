@@ -1,6 +1,7 @@
-// Service worker di PinQuattrini: precache della shell + stale-while-revalidate.
+// Service worker di PinQuattrini: precache della shell; la pagina usa prima la rete
+// (cosi gli aggiornamenti arrivano subito), il resto stale-while-revalidate.
 // Incrementare VERSION quando cambia l'elenco SHELL o si vuole forzare il ricaricamento.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = 'pinquattrini-' + VERSION;
 
 const SHELL = [
@@ -45,6 +46,23 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (!cacheable(url)) return; // Firestore/Auth e altro: direttamente in rete
+
+  // Pagina principale: rete prima (saltando la cache HTTP), cache solo se offline o troppo lenta.
+  if (req.mode === 'navigate' && url.origin === self.location.origin) {
+    e.respondWith(
+      caches.open(CACHE).then((cache) => {
+        const net = fetch(new Request(req.url, { cache: 'no-cache' })).then((res) => {
+          if (res && res.ok) cache.put('index.html', res.clone()).catch(() => {});
+          return res;
+        });
+        const slow = new Promise((_, no) => setTimeout(no, 4000));
+        return Promise.race([net, slow]).catch(() =>
+          cache.match('index.html', { ignoreSearch: true }).then((c) => c || net)
+        );
+      })
+    );
+    return;
+  }
 
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
