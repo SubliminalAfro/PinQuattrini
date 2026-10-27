@@ -964,5 +964,12 @@ document.addEventListener('change',ev=>{
 });
 render();
 </script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    try{navigator.serviceWorker.register('sw.js').catch(function(e){console.warn('SW non registrato',e)})}catch(e){console.warn('SW non registrato',e)}
+  });
+}
+</script>
 </body>
 </html>
