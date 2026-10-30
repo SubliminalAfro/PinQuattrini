@@ -387,6 +387,7 @@ const pad=n=>String(n).padStart(2,'0');
 function todayISO(d=new Date()){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 const curMonth=()=>todayISO().slice(0,7);
 function addMonth(m,n){let[y,mm]=m.split('-').map(Number);mm+=n;while(mm>12){mm-=12;y++}while(mm<1){mm+=12;y--}return y+'-'+pad(mm)}
+const maxMonth=()=>S.expenses.reduce((a,e)=>e.date.slice(0,7)>a?e.date.slice(0,7):a,curMonth());
 const monthName=m=>MESI[Number(m.slice(5))-1];
 const monthLabel=m=>monthName(m)+' '+m.slice(0,4);
 const daysIn=m=>new Date(Number(m.slice(0,4)),Number(m.slice(5)),0).getDate();
@@ -481,7 +482,7 @@ function toast(msg){const t=document.getElementById('toast');t.innerHTML=`<div c
 
 /* ============ Viste ============ */
 function header(title,back){return`<div class="between" style="gap:10px"><div class="row" style="min-width:0">${back?`<button class="iconbtn" data-act="go" data-v="${back}" aria-label="Indietro">${svg(UI.left,18,2.2)}</button>`:''}<h1 style="font-size:${back?22:26}px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</h1></div>${brand()}</div>`}
-function monthNav(){return`<div class="between"><button class="iconbtn" data-act="month" data-n="-1" aria-label="Mese precedente">${svg(UI.left,18,2.2)}</button><h1 style="font-size:20px">${monthLabel(ui.month)}</h1><button class="iconbtn" data-act="month" data-n="1" aria-label="Mese successivo" ${ui.month>=curMonth()?'disabled style="opacity:.35"':''}>${svg(UI.right,18,2.2)}</button></div>`}
+function monthNav(){return`<div class="between"><button class="iconbtn" data-act="month" data-n="-1" aria-label="Mese precedente">${svg(UI.left,18,2.2)}</button><h1 style="font-size:20px">${monthLabel(ui.month)}</h1><button class="iconbtn" data-act="month" data-n="1" aria-label="Mese successivo" ${ui.month>=maxMonth()?'disabled style="opacity:.35"':''}>${svg(UI.right,18,2.2)}</button></div>`}
 function expRow(e,showDate){
   const c=catOf(e.cat),s=subOf(c,e.sub);
   const title=e.desc||(s?s.name:c.name);
@@ -851,7 +852,7 @@ function validMoney(f){const a=parseMoney(f.amount);if(a<=0){ui.err='Scrivi un i
 
 const ACT={
   go(d){ui.view=d.v;ui.confirm='';if(d.v==='home')ui.filter='';render();window.scrollTo(0,0)},
-  month(d){const m=addMonth(ui.month,Number(d.n));if(m<=curMonth()){ui.month=m;ui.open='';render()}},
+  month(d){const m=addMonth(ui.month,Number(d.n));if(m<=maxMonth()){ui.month=m;ui.open='';render()}},
   filter(d){ui.filter=d.id;render()},
   openCat(d){ui.open=ui.open===d.id?'':d.id;render()},
   newExp(){if(!S.categories.length){toast('Crea prima almeno una categoria.');return}openExp(null)},
