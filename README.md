@@ -10,6 +10,7 @@ L'app è installabile sulla schermata Home e, grazie al service worker, si apre 
 - **Nuova spesa**: si sceglie prima *Casa* o *Personale*. Le spese di Casa sono visibili a entrambi e confluiscono in Home, Riepilogo e budget (con chi ha pagato e la divisione).
 - **Personale**: scheda con le spese Personali dell'account che la guarda (solo importo, data, categoria, descrizione) più le spese di Casa segnate *Solo mia*. Le spese Personali sono salvate in una raccolta separata per account (`spaces/main/personal_p1`, `personal_p2`) che l'altro account non legge, a patto di impostare le regole di Firestore (sezione Firebase). Le Personali non sono incluse in Home, Riepilogo e Saldo e non possono essere ricorrenti.
 - **Saldo**: chi deve cosa, rimborsi parziali e pareggio.
+- **Notifiche** (Opzioni → Notifiche, per singolo telefono): quando l'altro account aggiunge una spesa di Casa arriva un avviso. Ogni nuova spesa salva il campo `by` (chi l'ha inserita); le spese ricorrenti automatiche e le Personali non notificano. Non c'è un server: l'avviso parte dal listener Firestore, quindi arriva finché l'app è aperta o in secondo piano (su iPhone serve l'app aggiunta alla schermata Home, iOS 16.4+). Per avvisi ad app chiusa servirebbe Firebase Cloud Messaging con una Cloud Function.
 
 ## Come si pubblica (GitHub Pages)
 
