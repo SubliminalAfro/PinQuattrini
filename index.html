@@ -115,9 +115,10 @@ input.in,select.in{height:48px;border-radius:12px;border:1px solid var(--field-l
 .dot{width:10px;height:10px;border-radius:3px;display:inline-block;flex-shrink:0}
 .empty{padding:28px 18px;text-align:center;color:var(--muted);font-size:15px;line-height:1.5}
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-nav.tabs .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
-nav.tabs button{height:64px;border:0;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;font-weight:600}
+nav.tabs .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+nav.tabs button{height:64px;border:0;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10.5px;font-weight:600;padding:0 1px;min-width:0;white-space:nowrap;letter-spacing:-.01em}
 nav.tabs button.on{color:var(--accent);font-weight:700}
+@media (max-width:389px){nav.tabs button{font-size:9.5px;letter-spacing:-.03em}}
 .fab{position:fixed;right:max(20px,calc(50% - 240px));bottom:calc(76px + env(safe-area-inset-bottom,0px));width:60px;height:60px;border-radius:20px;border:0;background:var(--fab);color:var(--fab-ink);display:flex;align-items:center;justify-content:center;z-index:21;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .sheet{position:fixed;inset:0;z-index:40;background:var(--bg);overflow-y:auto;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);animation:up .22s ease-out}
 .sheet .wrap{padding-bottom:32px;min-height:100%}
@@ -152,6 +153,11 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 textarea.in{width:100%;min-height:180px;border-radius:12px;border:1px solid var(--field-line);background:var(--field);padding:12px;font-size:12px;font-family:ui-monospace,Menlo,monospace}
 .daygroup{font-size:13px;font-weight:700;color:var(--muted);margin:8px 4px 0}
+.chk{width:28px;height:28px;border-radius:9px;border:2px solid var(--field-line);background:var(--card);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff}
+.chk.on{background:var(--accent);border-color:var(--accent)}
+.shop.done .t{text-decoration:line-through;text-decoration-thickness:2px;color:var(--muted);font-weight:600}
+.shopwho{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:12px;color:var(--muted);white-space:nowrap;flex-shrink:0;text-align:right}
+.shopwho b{color:var(--text);font-weight:700;display:inline-flex;align-items:center;gap:5px}
 </style>
 </head>
 <body>
@@ -182,14 +188,19 @@ let db;
 try{db=initializeFirestore(fbApp,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})})}
 catch(e){db=getFirestore(fbApp)}
 
-function blank(){return{v:1,people:null,categories:[],expenses:[],recurring:[],settlements:[],personal:[],settings:{alertOn:true,alertAt:80}}}
+function blank(){return{v:1,people:null,categories:[],expenses:[],recurring:[],settlements:[],personal:[],shopping:[],settings:{alertOn:true,alertAt:80}}}
 let S=blank();
 let me=null;
-let authState='loading',userEmail='',dataError='';
+let authState='loading',userEmail='',dataError='',shopError='';
 
 /* ============ Versione e note di rilascio ============ */
-const VERSION='1.15';
+const VERSION='1.16';
 const RELEASES=[
+  {v:'1.16',date:'10 novembre 2026',notes:[
+    'Nuova scheda Lista: la lista della spesa condivisa tra voi due, aggiornata in tempo reale',
+    'Scrivi cosa comprare e tocca Aggiungi (o Invio); quando l\u2019hai preso tocca la casella: la voce viene sbarrata e accanto compaiono la data e chi l\u2019ha comprata',
+    'Tocca di nuovo la casella per rimetterla da comprare. I comprati spariscono da soli dopo 2 settimane, oppure li togli subito con \u201cTogli i comprati\u201d'
+  ]},
   {v:'1.15',date:'27 ottobre 2026',notes:[
     'Quando aggiungi una spesa scegli prima se \u00e8 di Casa o Personale',
     'Le spese Personali le vedi solo tu, nella scheda Personale: l\u2019altro account non le riceve nemmeno. Nella scheda trovi anche le spese di Casa segnate \u201cSolo mia\u201d',
@@ -313,13 +324,13 @@ let newsChecked=false;
 /* ============ Sincronizzazione ============
    Dopo ogni modifica, save() confronta i dati in memoria con l'ultima
    versione ricevuta dal database e scrive solo cio che e cambiato. */
-const COLLS=['categories','expenses','recurring','settlements','personal'];
+const COLLS=['categories','expenses','recurring','settlements','personal','shopping'];
 /* le spese personali stanno in una raccolta separata per ogni account (personal_p1, personal_p2): l'altro non la legge */
 const pathOf=c=>c==='personal'?'personal_'+me:c;
 
 const ROOT=['spaces','main'];
-let synced={categories:{},expenses:{},recurring:{},settlements:{},personal:{}},syncedMeta=null;
-let loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false,personal:false};
+let synced={categories:{},expenses:{},recurring:{},settlements:{},personal:{},shopping:{}},syncedMeta=null;
+let loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false,personal:false,shopping:false};
 let unsubs=[],recurDone=false,recurDay='';
 function stable(v){if(Array.isArray(v))return'['+v.map(stable).join(',')+']';if(v&&typeof v==='object')return'{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}';return JSON.stringify(v===undefined?null:v)}
 const clean=o=>JSON.parse(JSON.stringify(o));
@@ -334,8 +345,9 @@ function save(){
     for(const id in synced[c])if(!cur[id]){ops.push(['del',doc(db,...ROOT,pathOf(c),id),0,c,id]);delete synced[c][id]}
   }
   const mj=stable(metaOf());if(mj!==syncedMeta){ops.push(['set',doc(db,...ROOT),clean(metaOf()),'']);syncedMeta=mj}
-  /* le spese personali vanno in un gruppo a parte, cosi un errore li non blocca il resto */
-  const groups=[ops.filter(o=>o[3]!=='personal'),ops.filter(o=>o[3]==='personal')];
+  /* spese personali e lista della spesa vanno in gruppi a parte, cosi un errore li non blocca il resto */
+  const SEP=['personal','shopping'];
+  const groups=[ops.filter(o=>!SEP.includes(o[3])),...SEP.map(c=>ops.filter(o=>o[3]===c))];
   for(const g of groups)for(let i=0;i<g.length;i+=400){
     const b=writeBatch(db),part=g.slice(i,i+400);
     for(const[t,r,v]of part)t==='set'?b.set(r,v):b.delete(r);
@@ -345,15 +357,19 @@ function save(){
       toast('Salvataggio non riuscito ('+(e.code||'errore')+'). Riprova.')});
   }
 }
-function stopListeners(){unsubs.forEach(u=>u());unsubs=[];synced={categories:{},expenses:{},recurring:{},settlements:{},personal:{}};syncedMeta=null;loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false,personal:false};recurDone=false;recurDay=''}
+function stopListeners(){unsubs.forEach(u=>u());unsubs=[];synced={categories:{},expenses:{},recurring:{},settlements:{},personal:{},shopping:{}};syncedMeta=null;loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false,personal:false,shopping:false};recurDone=false;recurDay=''}
+/* i comprati da piu di 2 settimane spariscono da soli dalla lista */
+const SHOP_KEEP=14*86400000;
+function pruneShop(){const lim=Date.now()-SHOP_KEEP,n=S.shopping.length;S.shopping=S.shopping.filter(x=>!x.done||!(x.doneAt<lim));return n-S.shopping.length}
 function onData(){
   if(!allLoaded()){render(true);return}
   if(!recurDone){recurDone=true;recurDay=todayISO();runRecurring()}
+  if(pruneShop())save();
   render(true);
 }
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState!=='visible'||authState!=='in'||!allLoaded()||!recurDone||recurDay===todayISO())return;
-  recurDay=todayISO();if(runRecurring())render(true);
+  recurDay=todayISO();const a=runRecurring(),b=pruneShop();if(b)save();if(a||b)render(true);
 });
 function listenErr(e){console.error(e);dataError=e.code==='permission-denied'?'Il database non ti fa entrare. Controlla le regole di Firestore.':'Non riesco a leggere i dati ('+(e.code||'errore')+').';render()}
 function startListeners(){
@@ -366,8 +382,11 @@ function startListeners(){
     unsubs.push(onSnapshot(collection(db,...ROOT,pathOf(c)),snap=>{
       S[c]=snap.docs.map(d=>({...d.data(),id:d.id}));
       synced[c]={};for(const it of S[c])synced[c][it.id]=stable(it);
+      if(c==='shopping')shopError='';
       loaded[c]=true;onData();
-    },c==='personal'?e=>{console.error(e);loaded.personal=true;onData()}:listenErr));
+    },c==='personal'?e=>{console.error(e);loaded.personal=true;onData()}
+     :c==='shopping'?e=>{console.error(e);shopError=e.code==='permission-denied'?'Il database non fa leggere la lista della spesa: nelle regole di Firestore va permessa la raccolta shopping.':'Non riesco a leggere la lista ('+(e.code||'errore')+').';loaded.shopping=true;onData()}
+     :listenErr));
   }
 }
 onAuthStateChanged(auth,u=>{
@@ -431,7 +450,8 @@ pencil:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
 trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
 check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
 user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
-lock:'<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'
+lock:'<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+list:'<path d="M10 6h10M10 12h10M10 18h10"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17"/>'
 };
 function svg(path,size=20,sw=2,color='currentColor'){return`<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`}
 const COLORS=[['verde','Verde'],['blu','Blu'],['ambra','Ambra'],['rosso','Rosso'],['viola','Viola'],['grigio','Grigio']];
@@ -533,6 +553,30 @@ function vPersonale(){
   return`<div class="wrap"><div class="between"><h1>Personale</h1>${brand()}</div>${monthNav()}
   <div class="card pad" style="display:flex;flex-direction:column;gap:4px"><div class="between" style="align-items:baseline"><span class="muted" style="font-size:14px;font-weight:600">Le tue spese del mese</span><span style="font-size:24px;font-weight:800">${fmt(tot)}</span></div><span class="muted small">Solo tu le vedi. Ci sono anche le spese di casa segnate \u201cSolo mia\u201d</span></div>
   ${ex.length?groups:`<div class="card empty">Nessuna spesa personale in questo mese.<br>Tocca + e scegli Personale per aggiungerne una.</div>`}</div>`;
+}
+
+function shopDate(t){const d=new Date(t);if(todayISO(d)===todayISO())return'oggi';const y=new Date();y.setDate(y.getDate()-1);if(todayISO(d)===todayISO(y))return'ieri';return d.toLocaleDateString('it-IT',d.getFullYear()===new Date().getFullYear()?{day:'numeric',month:'short'}:{day:'numeric',month:'short',year:'numeric'})}
+function shopRow(it){
+  const done=!!it.done,nm=esc(it.name);
+  const del=ui.confirm==='sd'+it.id;
+  return`<div class="item shop${done?' done':''}" style="min-height:56px;padding:6px 4px 6px 14px;gap:8px">
+    <button class="ghost row" style="flex:1;min-width:0;padding:6px 0;text-align:left;gap:12px;min-height:44px" data-act="shopToggle" data-id="${it.id}" aria-pressed="${done}" aria-label="${nm}: ${done?'comprato, tocca per rimetterlo da comprare':'da comprare, tocca quando l’hai preso'}">
+      <span class="chk${done?' on':''}">${done?svg(UI.check,18,3):''}</span>
+      <span class="grow"><span class="t">${nm}</span>${!done&&it.addedBy?`<span class="s">aggiunto da ${it.addedBy===me?'te':esc(pname(it.addedBy))}</span>`:''}</span>
+      ${done?`<span class="shopwho"><span>${esc(shopDate(it.doneAt))}</span><b><span class="dot" style="width:8px;height:8px;background:var(--${it.doneBy})"></span>${it.doneBy===me?'Tu':esc(pname(it.doneBy))}</b></span>`:''}
+    </button>
+    <button class="iconbtn ghost" data-act="shopDel" data-id="${it.id}" aria-label="${del?'Tocca di nuovo per eliminare '+nm:'Elimina '+nm}" ${del?'style="background:color-mix(in srgb,var(--danger) 14%,var(--card))"':''}>${svg(UI.trash,18,2,del?'var(--danger)':'var(--muted)')}</button>
+  </div>`;
+}
+function vLista(){
+  const todo=S.shopping.filter(x=>!x.done).sort((a,b)=>a.createdAt-b.createdAt);
+  const done=S.shopping.filter(x=>x.done).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
+  return`<div class="wrap"><div class="between"><h1>Lista spesa</h1>${brand()}</div>
+  ${shopError?`<div class="alert">${svg(UI.warn,18)}<span>${esc(shopError)}</span></div>`:''}
+  <div class="row" style="gap:8px"><label class="sr" for="shopIn">Cosa comprare</label><input id="shopIn" class="in" style="flex:1" maxlength="60" placeholder="Cosa c’è da comprare?" value="${esc(ui.shopNew||'')}" data-enter="shopAdd" autocomplete="off" enterkeyhint="enter"><button class="btn" style="width:auto;height:48px;padding:0 18px;font-size:15px;flex-shrink:0" data-act="shopAdd">Aggiungi</button></div>
+  ${todo.length?`<h2>Da comprare <span class="muted" style="font-weight:600">· ${todo.length}</span></h2><div class="card list">${todo.map(shopRow).join('')}</div>`:`<div class="card empty">${done.length?'Avete preso tutto!':'La lista è vuota.<br>Scrivi qui sopra la prima cosa da comprare.'}</div>`}
+  ${done.length?`<div class="between" style="margin-top:4px"><h2 style="margin:0">Comprati <span class="muted" style="font-weight:600">· ${done.length}</span></h2><button class="link" data-act="shopClear" style="${ui.confirm==='shopClear'?'color:var(--danger)':''}">${ui.confirm==='shopClear'?'Tocca di nuovo per confermare':'Togli i comprati'}</button></div><div class="card list">${done.map(shopRow).join('')}</div><p class="muted small" style="padding:0 4px">I comprati spariscono da soli dopo 2 settimane.</p>`:''}
+  </div>`;
 }
 
 function vRiepilogo(){
@@ -768,7 +812,7 @@ function sheetWipe(){
   return`<div role="dialog" aria-modal="true" aria-labelledby="wipeT" style="position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:calc(20px + env(safe-area-inset-top,0px)) 20px calc(20px + env(safe-area-inset-bottom,0px))">
   <div class="card" style="width:100%;max-width:420px;max-height:100%;overflow-y:auto;padding:22px 20px 18px;display:flex;flex-direction:column;gap:14px;animation:up .22s ease-out">
     <div class="row" style="gap:12px"><span style="width:44px;height:44px;border-radius:14px;background:color-mix(in srgb,var(--danger) 15%,var(--card));display:flex;align-items:center;justify-content:center;flex-shrink:0">${svg(UI.warn,22,2,'var(--danger)')}</span><h2 id="wipeT" style="margin:0;font-size:20px">Cancellare tutto?</h2></div>
-    <p style="font-size:15px;line-height:1.5">Stai per eliminare <b>per sempre</b> tutte le spese, le categorie, i budget, le ricorrenti e i pareggi, <b>per entrambi</b>. Non si pu\u00f2 annullare.</p>
+    <p style="font-size:15px;line-height:1.5">Stai per eliminare <b>per sempre</b> tutte le spese, le categorie, i budget, le ricorrenti, i pareggi e la lista della spesa, <b>per entrambi</b>. Non si pu\u00f2 annullare.</p>
     <div class="field"><label class="lbl" for="wp">Per confermare, scrivi la tua password</label><input id="wp" class="in" type="password" autocomplete="current-password" value="${esc(f.pw||'')}" data-f="pw" data-enter="wipeGo"></div>
     ${ui.err?`<p class="err">${esc(ui.err)}</p>`:''}
     <div class="grid2"><button class="btn plain" style="height:50px" data-act="wipeCancel" ${ui.busy?'disabled':''}>Annulla</button><button class="btn danger-solid" style="height:50px;font-size:15px" data-act="wipeGo" ${ui.busy?'disabled':''}>${ui.busy?'Verifica\u2026':'Cancella tutto'}</button></div>
@@ -797,17 +841,20 @@ function render(remote){
   else if(!S.setupDone)html=withFoot(vCategorie(true));
   else{
     if(!newsChecked&&!ui.sheet){newsChecked=true;const l=newsToShow();if(l.length){ui.sheet='news';ui.form={list:l}}}
-    const V={home:vHome,spese:vSpese,riepilogo:vRiepilogo,personale:vPersonale,budget:vBudget,ricorrenti:vRicorrenti,saldo:vSaldo,categorie:()=>vCategorie(false),impostazioni:vImpostazioni};
+    const V={home:vHome,lista:vLista,spese:vSpese,riepilogo:vRiepilogo,personale:vPersonale,budget:vBudget,ricorrenti:vRicorrenti,saldo:vSaldo,categorie:()=>vCategorie(false),impostazioni:vImpostazioni};
     html=withFoot((V[ui.view]||vHome)());
     tabs=true;
   }
   if(tabs){
-    const T=[['home','Home',UI.home],['riepilogo','Riepilogo',UI.chart],['personale','Personale',UI.user],['ricorrenti','Ricorrenti',UI.rec],['saldo','Saldo',UI.scale],['impostazioni','Opzioni',UI.gear]];
+    const T=[['home','Home',UI.home],['lista','Lista',UI.list],['riepilogo','Riepilogo',UI.chart],['personale','Personale',UI.user],['ricorrenti','Ricorrenti',UI.rec],['saldo','Saldo',UI.scale],['impostazioni','Opzioni',UI.gear]];
     const act={spese:'home',budget:'impostazioni',categorie:'impostazioni'}[ui.view]||ui.view;
     html+=`<button class="fab" data-act="newExp" aria-label="Aggiungi spesa">${svg(UI.plus,26,2.5)}</button>`;
     html+=`<nav class="tabs" aria-label="Sezioni"><div class="in">${T.map(([k,l,i])=>`<button class="${act===k?'on':''}" data-act="go" data-v="${k}" ${act===k?'aria-current="page"':''}>${svg(i,22)}${l}</button>`).join('')}</div></nav>`;
   }
+  /* se si sta scrivendo nella lista, un aggiornamento dall'altro telefono non deve far perdere il campo */
+  const ae=document.activeElement,keep=ae&&ae.id==='shopIn'?[ae.selectionStart,ae.selectionEnd]:null;
   app.innerHTML=html;
+  if(keep){const i=document.getElementById('shopIn');if(i){i.focus({preventScroll:true});try{i.setSelectionRange(keep[0],keep[1])}catch(e){}}}
   if(!(remote&&hadSheet))renderSheet();
 }
 function renderSheet(keepFocus){
@@ -941,6 +988,22 @@ const ACT={
     S.settlements.push({id:uid(),type:'rimborso',from:f.dir==='in'?o:me,to:f.dir==='in'?me:o,amount:a,date:f.date,note:(f.note||'').trim(),createdAt:Date.now()});
     save();ui.sheet=null;ui.form=null;render();toast('Rimborso registrato');
   },
+  shopAdd(){
+    const i=document.getElementById('shopIn');const n=((i?i.value:ui.shopNew)||'').trim().slice(0,60);
+    if(!n){if(i)i.focus();return}
+    if(S.shopping.some(x=>!x.done&&x.name.toLowerCase()===n.toLowerCase())){toast('È già nella lista');return}
+    S.shopping.push({id:uid(),name:n,addedBy:me,createdAt:Date.now(),done:false});
+    ui.shopNew='';save();render();
+    const ni=document.getElementById('shopIn');if(ni)ni.focus({preventScroll:true});
+  },
+  shopToggle(d){
+    const x=S.shopping.find(x=>x.id===d.id);if(!x)return;
+    if(x.done){x.done=false;delete x.doneBy;delete x.doneAt}
+    else{x.done=true;x.doneBy=me;x.doneAt=Date.now()}
+    save();render();
+  },
+  shopDel(d){if(needConfirm('sd'+d.id)){render();return}S.shopping=S.shopping.filter(x=>x.id!==d.id);save();render();toast('Tolto dalla lista')},
+  shopClear(){if(needConfirm('shopClear')){render();return}const n=S.shopping.filter(x=>x.done).length;S.shopping=S.shopping.filter(x=>!x.done);save();render();toast(n===1?'Tolto 1 comprato':'Tolti '+n+' comprati')},
   closeNews(){setSeen();ui.sheet=null;ui.form=null;render()},
   finishSetup(){if(!S.categories.length)return;S.setupDone=true;setSeen();newsChecked=true;save();ui.view='home';render()},
   saveNames(){const v=document.getElementById('n1').value.trim();if(!v){toast('Il nome non pu\u00f2 essere vuoto.');return}S.people[me].name=v;save();render();toast('Nome salvato')},
@@ -957,6 +1020,7 @@ const ACT={
       S.expenses=L('expenses').filter(amt).map(e=>({...e,sub:e.sub||'',createdAt:Number(e.createdAt)||Date.now()}));
       S.recurring=L('recurring').filter(amt).map(r=>({...r,sub:r.sub||'',done:Array.isArray(r.done)?r.done:[],active:r.active!==false,startMonth:/^\d{4}-\d{2}$/.test(r.startMonth||'')?r.startMonth:curMonth(),day:Math.min(31,Math.max(1,Math.round(Number(r.day))||1))}));
       if(Array.isArray(d.personal))S.personal=L('personal').filter(amt).map(e=>({...e,sub:e.sub||'',createdAt:Number(e.createdAt)||Date.now()}));
+      if(Array.isArray(d.shopping))S.shopping=L('shopping').filter(x=>typeof x.name==='string'&&x.name.trim()).map(x=>({...x,name:x.name.trim().slice(0,60),done:!!x.done,createdAt:Number(x.createdAt)||Date.now()}));
       S.settlements=L('settlements').filter(amt).map(x=>({...x,createdAt:Number(x.createdAt)||Date.now()}));
       if(d.settings)S.settings=Object.assign({alertOn:true,alertAt:80},d.settings);
       S.setupDone=true;runRecurring();save();ui.sheet=null;ui.form=null;ui.view='home';render();toast('Dati importati')}
@@ -997,12 +1061,13 @@ const ACT={
 document.addEventListener('click',ev=>{
   const t=ev.target.closest('[data-act]');if(!t||t.disabled)return;
   const a=t.dataset.act;
-  const key=a==='delSettle'?'ds'+t.dataset.id:a;
+  const key=a==='delSettle'?'ds'+t.dataset.id:a==='shopDel'?'sd'+t.dataset.id:a;
   if(ui.confirm&&ui.confirm!==key){ui.confirm='';if(a!=='delCat')ui.err=''}
   ACT[a]&&ACT[a](t.dataset,t);
 });
 document.addEventListener('input',ev=>{
-  const t=ev.target;const k=t.dataset&&t.dataset.f;if(!k)return;
+  const t=ev.target;if(t.id==='shopIn'){ui.shopNew=t.value;return}
+  const k=t.dataset&&t.dataset.f;if(!k)return;
   if(!ui.form)ui.form={};
   ui.form[k]=t.type==='checkbox'?t.checked:t.value;
   if(ui.sheet==='rimb'){const af=document.getElementById('after');if(af)af.innerHTML=rimbAfter()}

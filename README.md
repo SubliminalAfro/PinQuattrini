@@ -9,6 +9,7 @@ L'app è installabile sulla schermata Home e, grazie al service worker, si apre 
 - **Home**: totale speso nel mese e quota di ciascuno. La quota è *pagato + rimborsi dati − rimborsi ricevuti* nel mese (data del rimborso), quindi il totale non cambia ma ognuno vede quanto ha davvero sostenuto. Esempio: X paga 500 €, Y paga 100 €, Y rimborsa 250 € a X → totale 600 €, X 250 €, Y 350 €. Anche i pareggi contano come rimborsi.
 - **Nuova spesa**: si sceglie prima *Casa* o *Personale*. Le spese di Casa sono visibili a entrambi e confluiscono in Home, Riepilogo e budget (con chi ha pagato e la divisione).
 - **Personale**: scheda con le spese Personali dell'account che la guarda (solo importo, data, categoria, descrizione) più le spese di Casa segnate *Solo mia*. Le spese Personali sono salvate in una raccolta separata per account (`spaces/main/personal_p1`, `personal_p2`) che l'altro account non legge, a patto di impostare le regole di Firestore (sezione Firebase). Le Personali non sono incluse in Home, Riepilogo e Saldo e non possono essere ricorrenti.
+- **Lista**: lista della spesa condivisa tra i due account. Si aggiunge una voce scrivendola in alto; toccando la casella la voce viene sbarrata e accanto compaiono la data e chi l'ha comprata (toccando di nuovo torna da comprare). Le voci comprate da più di 2 settimane vengono tolte da sole all'apertura dell'app; *Togli i comprati* le toglie subito. Le voci sono salvate nella raccolta `spaces/main/shopping`.
 - **Saldo**: chi deve cosa, rimborsi parziali e pareggio.
 
 ## Come si pubblica (GitHub Pages)
@@ -50,6 +51,10 @@ Le risorse in cache vengono aggiornate in background a ogni visita. Se si modifi
 ## Firebase
 
 Le regole di sicurezza di Firestore **non sono nel repository**: vanno impostate dalla console Firebase (*Firestore Database → Regole*), limitando lettura e scrittura ai soli utenti autorizzati della coppia. Non committare nel repository identificativi o segreti legati agli utenti.
+
+### Regola per la lista della spesa
+
+La lista sta nella raccolta condivisa `spaces/main/shopping`. Se le regole coprono già tutto `spaces/main/**` per entrambi gli account non serve fare nulla; se invece elencano le raccolte una per una, va aggiunta anche questa con le stesse condizioni delle altre raccolte condivise (es. `expenses`). Finché manca, la scheda Lista mostra un avviso e il resto dell'app continua a funzionare.
 
 ### Regole per le spese personali
 
