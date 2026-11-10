@@ -199,7 +199,7 @@ const RELEASES=[
   {v:'1.16',date:'10 novembre 2026',notes:[
     'Nuova scheda Lista: la lista della spesa condivisa tra voi due, aggiornata in tempo reale',
     'Scrivi cosa comprare e tocca Aggiungi (o Invio); quando l\u2019hai preso tocca la casella: la voce viene sbarrata e accanto compaiono la data e chi l\u2019ha comprata',
-    'Tocca di nuovo la casella per rimetterla da comprare; con \u201cTogli i comprati\u201d pulisci la lista'
+    'Tocca di nuovo la casella per rimetterla da comprare. I comprati spariscono da soli dopo 2 settimane, oppure li togli subito con \u201cTogli i comprati\u201d'
   ]},
   {v:'1.15',date:'27 ottobre 2026',notes:[
     'Quando aggiungi una spesa scegli prima se \u00e8 di Casa o Personale',
@@ -358,14 +358,18 @@ function save(){
   }
 }
 function stopListeners(){unsubs.forEach(u=>u());unsubs=[];synced={categories:{},expenses:{},recurring:{},settlements:{},personal:{},shopping:{}};syncedMeta=null;loaded={meta:false,categories:false,expenses:false,recurring:false,settlements:false,personal:false,shopping:false};recurDone=false;recurDay=''}
+/* i comprati da piu di 2 settimane spariscono da soli dalla lista */
+const SHOP_KEEP=14*86400000;
+function pruneShop(){const lim=Date.now()-SHOP_KEEP,n=S.shopping.length;S.shopping=S.shopping.filter(x=>!x.done||!(x.doneAt<lim));return n-S.shopping.length}
 function onData(){
   if(!allLoaded()){render(true);return}
   if(!recurDone){recurDone=true;recurDay=todayISO();runRecurring()}
+  if(pruneShop())save();
   render(true);
 }
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState!=='visible'||authState!=='in'||!allLoaded()||!recurDone||recurDay===todayISO())return;
-  recurDay=todayISO();if(runRecurring())render(true);
+  recurDay=todayISO();const a=runRecurring(),b=pruneShop();if(b)save();if(a||b)render(true);
 });
 function listenErr(e){console.error(e);dataError=e.code==='permission-denied'?'Il database non ti fa entrare. Controlla le regole di Firestore.':'Non riesco a leggere i dati ('+(e.code||'errore')+').';render()}
 function startListeners(){
@@ -571,7 +575,7 @@ function vLista(){
   ${shopError?`<div class="alert">${svg(UI.warn,18)}<span>${esc(shopError)}</span></div>`:''}
   <div class="row" style="gap:8px"><label class="sr" for="shopIn">Cosa comprare</label><input id="shopIn" class="in" style="flex:1" maxlength="60" placeholder="Cosa c’è da comprare?" value="${esc(ui.shopNew||'')}" data-enter="shopAdd" autocomplete="off" enterkeyhint="enter"><button class="btn" style="width:auto;height:48px;padding:0 18px;font-size:15px;flex-shrink:0" data-act="shopAdd">Aggiungi</button></div>
   ${todo.length?`<h2>Da comprare <span class="muted" style="font-weight:600">· ${todo.length}</span></h2><div class="card list">${todo.map(shopRow).join('')}</div>`:`<div class="card empty">${done.length?'Avete preso tutto!':'La lista è vuota.<br>Scrivi qui sopra la prima cosa da comprare.'}</div>`}
-  ${done.length?`<div class="between" style="margin-top:4px"><h2 style="margin:0">Comprati <span class="muted" style="font-weight:600">· ${done.length}</span></h2><button class="link" data-act="shopClear" style="${ui.confirm==='shopClear'?'color:var(--danger)':''}">${ui.confirm==='shopClear'?'Tocca di nuovo per confermare':'Togli i comprati'}</button></div><div class="card list">${done.map(shopRow).join('')}</div>`:''}
+  ${done.length?`<div class="between" style="margin-top:4px"><h2 style="margin:0">Comprati <span class="muted" style="font-weight:600">· ${done.length}</span></h2><button class="link" data-act="shopClear" style="${ui.confirm==='shopClear'?'color:var(--danger)':''}">${ui.confirm==='shopClear'?'Tocca di nuovo per confermare':'Togli i comprati'}</button></div><div class="card list">${done.map(shopRow).join('')}</div><p class="muted small" style="padding:0 4px">I comprati spariscono da soli dopo 2 settimane.</p>`:''}
   </div>`;
 }
 
